@@ -1,6 +1,7 @@
 import math
 from typing import List
 
+
 class Vector:
     def __init__(self, x: float = 0, y: float = 0):
         """

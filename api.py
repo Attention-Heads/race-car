@@ -12,6 +12,7 @@ PORT = 9052
 app = FastAPI()
 start_time = time.time()
 
+
 @app.post('/predict', response_model=RaceCarPredictResponseDto)
 def predict(request: RaceCarPredictRequestDto = Body(...)):
     action = return_action(request.dict())
@@ -19,6 +20,7 @@ def predict(request: RaceCarPredictRequestDto = Body(...)):
         action_type=action['action_type'],
         actions=action['actions']
     )
+
 
 @app.get('/api')
 def hello():
@@ -31,8 +33,6 @@ def hello():
 @app.get('/')
 def index():
     return "Your endpoint is running!"
-
-
 
 
 if __name__ == '__main__':
