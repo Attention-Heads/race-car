@@ -130,15 +130,15 @@ def get_action():
 
     # Priority: accelerate, decelerate, steer left, steer right, nothing
     if keys[pygame.K_RIGHT]:
-        return "ACCELERATE"
+        return ["ACCELERATE"]
     if keys[pygame.K_LEFT]:
-        return "DECELERATE"
+        return ["DECELERATE"]
     if keys[pygame.K_UP]:
-        return "STEER_LEFT"
+        return ["STEER_LEFT"]
     if keys[pygame.K_DOWN]:
-        return "STEER_RIGHT"
+        return ["STEER_RIGHT"]
     if keys[pygame.K_SPACE]:
-        return "NOTHING"
+        return ["NOTHING"]
 
     # Just clicking once and it keeps doing it until a new press
     for event in pygame.event.get():
@@ -147,15 +147,15 @@ def get_action():
             exit()
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_RIGHT:
-                return "ACCELERATE"
+                return ["ACCELERATE"]
             elif event.key == pygame.K_LEFT:
-                return "DECELERATE"
+                return ["DECELERATE"]
             elif event.key == pygame.K_UP:
-                return "STEER_LEFT"
+                return ["STEER_LEFT"]
             elif event.key == pygame.K_DOWN:
-                return "STEER_RIGHT"
+                return ["STEER_RIGHT"]
             elif event.key == pygame.K_SPACE:
-                return "NOTHING"
+                return ["NOTHING"]
 
     # If no relevant key is pressed, repeat last action or do nothing
     # return STATE.latest_action if hasattr(STATE, "latest_action") else "NOTHING"
@@ -253,7 +253,7 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
     global STATE
     clock = pygame.time.Clock()
     screen = None
-    action_list = []
+    actions = []
     if verbose:
         screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("Race Car Game")
@@ -268,12 +268,13 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
                 f"Game over: Crashed: {STATE.crashed}, Ticks: {STATE.ticks}, Elapsed time: {STATE.elapsed_game_time} ms, Distance: {STATE.distance}")
             break
 
-        # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
-        # sensor_data = {sensor.name: sensor.reading for sensor in STATE.sensors}
-        # if len(action_list) == 0:
-        #     action_list = get_action_from_rule_based_agent(sensor_data)
-        # action = action_list.pop()
-        action = get_action()
+        if not actions:
+            # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
+            action_list = get_action()
+
+            for act in action_list:
+                actions.append(act)
+        action = actions.pop()
 
         # Log the action with tick
         if log_actions:
