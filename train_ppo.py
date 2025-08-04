@@ -7,6 +7,7 @@ for fine-tuning your race car agent.
 
 import os
 import numpy as np
+import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
@@ -55,15 +56,16 @@ def create_training_config() -> Dict[str, Any]:
             'vf_coef': 0.5,                # Value function coefficient
             'max_grad_norm': 0.5,          # Gradient clipping
             'target_kl': None,             # Target KL divergence
+            'device': 'cpu',               # Force CPU usage
         },
         
         # Training configuration
         'training_config': {
-            'total_timesteps': 100000,     # Total training steps
+            'total_timesteps': 100_000,     # Total training steps
             'n_eval_episodes': 10,         # Episodes for evaluation
             'eval_freq': 5000,             # Evaluation frequency
             'save_freq': 10000,            # Model save frequency
-            'n_envs': 4,                   # Number of parallel environments
+            'n_envs': 128,                  # Number of parallel environments
             'use_subprocess': False,       # Use subprocess for parallel envs
         },
         
@@ -162,6 +164,9 @@ def train_ppo_agent(config: Dict[str, Any], pretrained_model_path: str = None):
         config: Training configuration
         pretrained_model_path: Path to pretrained model (for fine-tuning)
     """
+    # Force CPU usage
+    torch.set_default_device('cpu')
+    
     # Create directories
     paths = config['paths']
     for path in paths.values():
@@ -224,6 +229,9 @@ def evaluate_model(model_path: str, config: Dict[str, Any], n_episodes: int = 10
         config: Environment configuration
         n_episodes: Number of episodes to evaluate
     """
+    # Force CPU usage
+    torch.set_default_device('cpu')
+    
     # Create evaluation environment
     env = make_race_car_env(config['env_config'])
     
@@ -271,6 +279,9 @@ def evaluate_model(model_path: str, config: Dict[str, Any], n_episodes: int = 10
 
 def main():
     """Main training script."""
+    # Force CPU usage globally
+    torch.set_default_device('cpu')
+    
     parser = argparse.ArgumentParser(description='Train PPO agent for race car environment')
     parser.add_argument('--mode', choices=['train', 'eval'], default='train',
                        help='Mode to run the script in')
