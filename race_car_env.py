@@ -1,6 +1,7 @@
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
+import pandas as pd
 import joblib
 import logging
 from typing import Dict, Any, Tuple
@@ -118,7 +119,9 @@ class RaceCarEnv(gym.Env):
         # Apply velocity scaling if available
         if self.velocity_scaler:
             try:
-                velocity_scaled = self.velocity_scaler.transform([state_array[:2]])[0]
+                # Create DataFrame with proper feature names for velocity
+                velocity_df = pd.DataFrame([state_array[:2]], columns=['velocity_x', 'velocity_y'])
+                velocity_scaled = self.velocity_scaler.transform(velocity_df)[0]
                 state_array[:2] = velocity_scaled
             except Exception as e:
                 logger.warning(f"Velocity scaling failed: {e}")

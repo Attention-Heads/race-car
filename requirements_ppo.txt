@@ -13,10 +13,14 @@ pydantic>=1.8.0
 requests>=2.25.0
 joblib>=1.0.0
 
-# Optional: for better monitoring and visualization
+# Visualization and analysis
 tensorboard>=2.8.0
 matplotlib>=3.5.0
 seaborn>=0.11.0
+
+# Additional imitation learning dependencies
+tqdm>=4.64.0
+pathlib
 
 # Optional: for video recording of episodes
 opencv-python>=4.5.0

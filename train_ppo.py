@@ -13,8 +13,10 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+from stable_baselines3.common.policies import ActorCriticPolicy
 import gymnasium as gym
 from race_car_env import make_race_car_env
+from imitation_learning import RaceCarFeaturesExtractor
 import argparse
 from typing import Dict, Any
 import logging
@@ -191,8 +193,17 @@ def train_ppo_agent(config: Dict[str, Any], pretrained_model_path: str = None):
         model.learning_rate = config['ppo_config']['learning_rate']
     else:
         logger.info("Creating new PPO model")
+        
+        # Custom policy class that uses our feature extractor
+        class CustomActorCriticPolicy(ActorCriticPolicy):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs,
+                               features_extractor_class=RaceCarFeaturesExtractor,
+                               features_extractor_kwargs=dict(features_dim=256),
+                               net_arch=[256])  # Match the feature extractor output size
+        
         model = PPO(
-            'MlpPolicy',
+            CustomActorCriticPolicy,
             train_env,
             verbose=1,
             tensorboard_log=paths['tensorboard_log'],
