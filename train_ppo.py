@@ -67,7 +67,7 @@ def create_training_config() -> Dict[str, Any]:
             'n_eval_episodes': 10,         # Episodes for evaluation
             'eval_freq': 5000,             # Evaluation frequency
             'save_freq': 10000,            # Model save frequency
-            'n_envs': 128,                  # Number of parallel environments
+            'n_envs': 16,                  # Number of parallel environments
             'use_subprocess': False,       # Use subprocess for parallel envs
         },
         
