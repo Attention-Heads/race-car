@@ -124,7 +124,9 @@ class RaceCarEnv(gym.Env):
         
         # 2. Scale velocity using the loaded scaler
         if self.velocity_scaler is not None:
-            velocity_scaled = self.velocity_scaler.transform([state_array[:2]])[0]
+            # Create a DataFrame with proper feature names to avoid sklearn warning
+            velocity_df = pd.DataFrame([state_array[:2]], columns=['velocity_x', 'velocity_y'])
+            velocity_scaled = self.velocity_scaler.transform(velocity_df)[0]
             state_array[:2] = velocity_scaled
         
         return state_array
