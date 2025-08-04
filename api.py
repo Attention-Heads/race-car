@@ -2,10 +2,11 @@ import uvicorn
 from fastapi import Body, FastAPI
 from stable_baselines3 import PPO
 import numpy as np
+import joblib
 
 # [+] Load your trained PPO agent and the velocity scaler
 try:
-    AGENT = PPO.load("./models/ppo_racecar_final.zip")
+    AGENT = PPO.load("./models/ppo_initialized_with_bc.zip")
     VELOCITY_SCALER = joblib.load('velocity_scaler.pkl')
     print("Trained agent and scaler loaded successfully.")
 except Exception as e:
@@ -58,7 +59,7 @@ def predict(request: RaceCarPredictRequestDto = Body(...)):
     action_mapping = {0: 'NOTHING', 1: 'ACCELERATE', 2: 'DECELERATE', 3: 'STEER_LEFT', 4: 'STEER_RIGHT'}
     action_name = action_mapping.get(int(action_num), 'NOTHING')
     
-    return RaceCarPredictResponseDto(action=action_name)
+    return RaceCarPredictResponseDto(actions=[action_name*10])
 
 if __name__ == '__main__':
     uvicorn.run('api:app', host="0.0.0.0", port=9052)

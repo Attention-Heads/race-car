@@ -6,8 +6,8 @@ import csv
 import datetime
 import random as py_random
 import math
-#import requests
-#from typing import List, Optional
+import requests
+from typing import List, Optional
 from ..mathematics.randomizer import seed, random_choice, random_number
 from ..elements.car import Car
 from ..elements.road import Road
@@ -331,6 +331,58 @@ def get_action_json():
         return "NOTHING"
 
 
+def get_action_from_api():
+    """
+    Call the API to get an action based on current game state.
+    Returns a single action string.
+    """
+    if not STATE.api_url:
+        return "NOTHING"
+    
+    try:
+        # Prepare the request data
+        velocity_data = {
+            'x': STATE.ego.velocity.x,
+            'y': STATE.ego.velocity.y
+        }
+        
+        sensors_data = {}
+        for sensor in STATE.sensors:
+            sensors_data[sensor.name] = sensor.reading
+        
+        request_data = {
+            'did_crash': STATE.crashed,
+            'elapsed_ticks': STATE.ticks,
+            'distance': STATE.distance,
+            'velocity': velocity_data,
+            'sensors': sensors_data
+        }
+        
+        # Make the API call
+        response = requests.post(
+            STATE.api_url,
+            json=request_data,
+            timeout=5  # 5 second timeout
+        )
+        
+        if response.status_code == 200:
+            result = response.json()
+            # Handle both single action and list of actions
+            if 'action' in result:
+                return result['action']
+            elif 'actions' in result and result['actions']:
+                return result['actions'][0]  # Take first action from list
+            else:
+                return "NOTHING"
+        else:
+            print(f"API call failed with status {response.status_code}")
+            return "NOTHING"
+            
+    except Exception as e:
+        print(f"Error calling API: {e}")
+        return "NOTHING"
+
+
 def initialize_game_state( api_url: str, seed_value: str, sensor_removal = 0):
     seed(seed_value)
     global STATE
@@ -480,8 +532,8 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
             break
 
         if not actions:
-            # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
-            action = get_action()
+            # Handle action - Call API to get action from your trained model
+            action = get_action_from_api()
             actions.append(action)
         
         if actions:
