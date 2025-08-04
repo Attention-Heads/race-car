@@ -8,6 +8,7 @@ from ..elements.road import Road
 from ..elements.sensor import Sensor
 from ..mathematics.vector import Vector
 import json
+from .agent import get_action_from_rule_based_agent
 
 # Define constants
 SCREEN_WIDTH = 1600
@@ -252,6 +253,7 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
     global STATE
     clock = pygame.time.Clock()
     screen = None
+    action_list = []
     if verbose:
         screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("Race Car Game")
@@ -267,6 +269,10 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
             break
 
         # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
+        # sensor_data = {sensor.name: sensor.reading for sensor in STATE.sensors}
+        # if len(action_list) == 0:
+        #     action_list = get_action_from_rule_based_agent(sensor_data)
+        # action = action_list.pop()
         action = get_action()
 
         # Log the action with tick

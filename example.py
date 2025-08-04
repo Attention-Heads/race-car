@@ -1,7 +1,7 @@
 import pygame
 import random
 from src.game.core import initialize_game_state, game_loop
-
+from src.game.agent import get_action_from_rule_based_agent
 
 '''
 Set seed_value to None for random seed.
@@ -9,18 +9,14 @@ Within game_loop, change get_action() to your custom models prediction for local
 '''
 
 
-def return_action(state):
+def return_action(sensors):
     # Returns a list of actions
-    actions = []
-    action_choices = ['ACCELERATE', 'DECELERATE',
-                      'STEER_LEFT', 'STEER_RIGHT', 'NOTHING']
-    for _ in range(10):
-        actions.append(random.choice(action_choices))
+    actions = get_action_from_rule_based_agent(sensors)
     return actions
 
 
 if __name__ == '__main__':
-    seed_value = 12345
+    seed_value = None
     pygame.init()
     initialize_game_state("http://example.com/api/predict", seed_value)
     game_loop(verbose=True)  # For pygame window
