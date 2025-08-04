@@ -61,7 +61,6 @@ ipython_config.py
 *.pb
 *.tflite
 *.onnx
-models/
 checkpoints/
 logs/
 tensorboard_logs/
