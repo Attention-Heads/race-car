@@ -24,7 +24,7 @@ if __name__ == '__main__':
     pygame.init()
     
     # Initialize game with API URL pointing to your model server
-    api_url = "http://localhost:9052/predict"
+    api_url = "https://d13b8570bacb.ngrok-free.app/predict"
     initialize_game_state(api_url, seed_value)
     
     # Run the game loop - your model will control the car
