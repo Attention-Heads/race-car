@@ -6,8 +6,9 @@ import joblib
 import logging
 from typing import Dict, Any, Tuple
 
-# Import the new simulation class
-from game_simulation import GameSimulation 
+# Import the new simulation class and preprocessing utilities
+from game_simulation import GameSimulation
+from preprocessing_utils import StatePreprocessor 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -20,27 +21,15 @@ class RaceCarEnv(gym.Env):
         # [+] Instantiate the game simulation directly. The 'verbose' flag controls the Pygame window.
         self.game = GameSimulation(verbose=self.config.get('render', False))
         
-        # --- The rest of your setup is mostly the same and very good ---
-        self.feature_order = [
-            'velocity_x', 'velocity_y',
-            'sensor_back', 'sensor_back_left_back', 'sensor_back_right_back',
-            'sensor_front', 'sensor_front_left_front', 'sensor_front_right_front',
-            'sensor_left_back', 'sensor_left_front', 'sensor_left_side',
-            'sensor_left_side_back', 'sensor_left_side_front',
-            'sensor_right_back', 'sensor_right_front', 'sensor_right_side',
-            'sensor_right_side_back', 'sensor_right_side_front'
-        ]
+        # Initialize centralized preprocessor
+        self.preprocessor = StatePreprocessor(use_velocity_scaler=True)
+        
+        # Get feature order from preprocessor to ensure consistency
+        self.feature_order = self.preprocessor.get_feature_order()
         self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(len(self.feature_order),), dtype=np.float32)
         
         self.action_mapping = {0: 'NOTHING', 1: 'ACCELERATE', 2: 'DECELERATE', 3: 'STEER_LEFT', 4: 'STEER_RIGHT'}
         self.action_space = spaces.Discrete(len(self.action_mapping))
-        
-        try:
-            self.velocity_scaler = joblib.load('velocity_scaler.pkl')
-            logger.info("Loaded velocity scaler successfully.")
-        except FileNotFoundError:
-            self.velocity_scaler = None
-            logger.warning("velocity_scaler.pkl not found. Velocity will not be scaled.")
         
         # State variables
         self.current_state_dto = None
@@ -99,35 +88,8 @@ class RaceCarEnv(gym.Env):
         return observation, reward, terminated, truncated, info
 
     def _flatten_and_process_state(self, state_dto: Dict) -> np.ndarray:
-        # Your flattening logic is good, just ensure keys match
-        flat_state = [state_dto['velocity']['x'], state_dto['velocity']['y']]
-        
-        # Process sensor readings - ensure we have valid values
-        for sensor_name in self.feature_order[2:]:
-            sensor_key = sensor_name.replace('sensor_', '')
-            sensor_value = state_dto['sensors'].get(sensor_key, 1000.0)
-            # Ensure sensor value is not None or NaN
-            if sensor_value is None or np.isnan(sensor_value):
-                sensor_value = 1000.0  # Max sensor range as default
-            flat_state.append(float(sensor_value))
-        
-        state_array = np.array(flat_state, dtype=np.float32)
-        
-        # Normalize sensor readings
-        state_array[2:] /= 1000.0
-        
-        # Apply velocity scaling if available
-        if self.velocity_scaler:
-            try:
-                # Create DataFrame with proper feature names for velocity
-                velocity_df = pd.DataFrame([state_array[:2]], columns=['velocity_x', 'velocity_y'])
-                velocity_scaled = self.velocity_scaler.transform(velocity_df)[0]
-                state_array[:2] = velocity_scaled
-            except Exception as e:
-                logger.warning(f"Velocity scaling failed: {e}")
-                # Keep original velocity values if scaling fails
-        
-        # Final check for NaN values
+        """Use centralized preprocessing for consistency."""
+        return self.preprocessor.preprocess_state_dict(state_dto)
         if np.isnan(state_array).any():
             logger.warning("NaN detected in state array, replacing with defaults")
             state_array = np.nan_to_num(state_array, nan=0.0, posinf=1.0, neginf=0.0)

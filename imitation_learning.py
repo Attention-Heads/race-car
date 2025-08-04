@@ -23,6 +23,7 @@ import logging
 from typing import Dict, Any, Tuple, Optional
 import matplotlib.pyplot as plt
 from pathlib import Path
+from preprocessing_utils import StatePreprocessor, FEATURE_ORDER
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -136,17 +137,9 @@ class ImitationLearner:
         
         # Initialize components
         self.label_encoder = LabelEncoder()
-        self.velocity_scaler = None
+        self.preprocessor = StatePreprocessor(use_velocity_scaler=use_velocity_scaler)
         self.model = None
         self.env = None
-        
-        # Load velocity scaler if available
-        if self.use_velocity_scaler:
-            try:
-                self.velocity_scaler = joblib.load('velocity_scaler.pkl')
-                logger.info("Loaded velocity scaler successfully.")
-            except FileNotFoundError:
-                logger.warning("velocity_scaler.pkl not found. Will create new one.")
         
     def load_and_preprocess_data(self, test_size: float = 0.2) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
@@ -171,32 +164,8 @@ class ImitationLearner:
         # For now, keep all data including crashes for more diverse training
         df_clean = df.copy()
         
-        # Prepare features in the same order as the environment
-        feature_columns = [
-            'velocity_x', 'velocity_y',
-            'sensor_back', 'sensor_back_left_back', 'sensor_back_right_back',
-            'sensor_front', 'sensor_front_left_front', 'sensor_front_right_front',
-            'sensor_left_back', 'sensor_left_front', 'sensor_left_side',
-            'sensor_left_side_back', 'sensor_left_side_front',
-            'sensor_right_back', 'sensor_right_front', 'sensor_right_side',
-            'sensor_right_side_back', 'sensor_right_side_front'
-        ]
-        
-        # Extract features
-        X = df_clean[feature_columns].values.astype(np.float32)
-        
-        # Normalize sensor readings (divide by 1000 like in environment)
-        X[:, 2:] /= 1000.0
-        
-        # Apply velocity scaling if available
-        if self.velocity_scaler is not None:
-            try:
-                velocity_data = X[:, :2]
-                velocity_scaled = self.velocity_scaler.transform(velocity_data)
-                X[:, :2] = velocity_scaled
-                logger.info("Applied velocity scaling to training data")
-            except Exception as e:
-                logger.warning(f"Velocity scaling failed: {e}")
+        # Use centralized preprocessing
+        X = self.preprocessor.preprocess_batch(df_clean)
         
         # Encode actions
         actions = df_clean['action'].values
@@ -222,7 +191,7 @@ class ImitationLearner:
                                 y_train: np.ndarray,
                                 X_test: np.ndarray,
                                 y_test: np.ndarray,
-                                epochs: int = 100,
+                                epochs: int = 1000,
                                 batch_size: int = 512,
                                 learning_rate: float = 1e-3,
                                 patience: int = 10) -> BehavioralCloningModel:
@@ -250,7 +219,7 @@ class ImitationLearner:
         test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
         
         # Initialize model
-        input_dim = X_train.shape[1]
+        input_dim = self.preprocessor.get_input_dim()
         output_dim = len(self.action_mapping)
         self.model = BehavioralCloningModel(input_dim, output_dim)
         
