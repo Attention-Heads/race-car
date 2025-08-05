@@ -215,9 +215,9 @@ def initialize_game_state(api_url: str, seed_value: str, sensor_removal=0):
         (337.5, "left_side_back"),
     ]
 
-    for _ in range(sensor_removal):  # Removes random sensors
-        random_sensor = random_choice(sensor_options)
-        sensor_options.remove(random_sensor)
+    # for _ in range(sensor_removal):  # Removes random sensors
+    #     random_sensor = random_choice(sensor_options)
+    #     sensor_options.remove(random_sensor)
     STATE.sensors = [
         Sensor(STATE.ego, angle, name, STATE)
         for angle, name in sensor_options
@@ -271,7 +271,14 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
         if not actions:
             # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
             # action_list = get_action()
-            action_list = get_action_from_rule_based_agent(STATE.sensors, velocity)
+
+            # Må prosessere om fra liste til dictionary!
+            sensor_data = {
+                sensor.name: sensor.reading
+                for sensor in STATE.sensors
+            }
+            action_list = get_action_from_rule_based_agent(
+                sensor_data)
 
             for act in action_list:
                 actions.append(act)
