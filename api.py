@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 # [+] Load your trained PPO agent and use centralized preprocessing
 try:
-    AGENT = PPO.load("./models/final_model.zip")
+    AGENT = PPO.load("./models/ppo_initialized_with_bc.zip")
     PREPROCESSOR = StatePreprocessor(use_velocity_scaler=True)
     print("Trained agent and preprocessor loaded successfully.")
 except Exception as e:
@@ -36,7 +36,9 @@ def process_request_for_model(request: RaceCarPredictRequestDto) -> np.ndarray:
         'sensors': request.sensors
     }
     
-    return PREPROCESSOR.preprocess_state_dict(state_dto)@app.post('/predict', response_model=RaceCarPredictResponseDto)
+    return PREPROCESSOR.preprocess_state_dict(state_dto)
+
+@app.post('/predict', response_model=RaceCarPredictResponseDto)
 def predict(request: RaceCarPredictRequestDto = Body(...)):
     try:
         if not AGENT:
@@ -63,7 +65,7 @@ def predict(request: RaceCarPredictRequestDto = Body(...)):
         action_mapping = {0: 'NOTHING', 1: 'ACCELERATE', 2: 'DECELERATE', 3: 'STEER_LEFT', 4: 'STEER_RIGHT'}
         action_name = action_mapping.get(int(action_num), 'NOTHING')
         
-        return RaceCarPredictResponseDto(actions=[action_name]*5)
+        return RaceCarPredictResponseDto(actions=[action_name]*10)
         
     except Exception as e:
         logger.error(f"Error in prediction: {e}")
