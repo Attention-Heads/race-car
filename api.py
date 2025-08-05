@@ -39,17 +39,24 @@ from dtos import RaceCarPredictRequestDto, RaceCarPredictResponseDto
 app = FastAPI()
 
 def process_request_for_model(request: RaceCarPredictRequestDto) -> np.ndarray:
-    """Use centralized preprocessing for consistency."""
+    """Use centralized preprocessing for consistency with training environment."""
     if PREPROCESSOR is None:
         raise RuntimeError("Preprocessor not loaded")
     
-    # Convert request to state dictionary format
+    # Convert request to state dictionary format (same as training environment)
     state_dto = {
         'velocity': {'x': request.velocity['x'], 'y': request.velocity['y']},
         'sensors': request.sensors
     }
     
-    return PREPROCESSOR.preprocess_state_dict(state_dto)
+    state_array = PREPROCESSOR.preprocess_state_dict(state_dto)
+    
+    # Apply the same NaN handling as the environment
+    if np.isnan(state_array).any():
+        logger.warning("NaN detected in state array, replacing with defaults")
+        state_array = np.nan_to_num(state_array, nan=0.0, posinf=1.0, neginf=0.0)
+    
+    return state_array
 
 @app.get('/')
 def root():

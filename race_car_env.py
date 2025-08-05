@@ -88,7 +88,9 @@ class RaceCarEnv(gym.Env):
 
     def _flatten_and_process_state(self, state_dto: Dict) -> np.ndarray:
         """Use centralized preprocessing for consistency."""
-        return self.preprocessor.preprocess_state_dict(state_dto)
+        state_array = self.preprocessor.preprocess_state_dict(state_dto)
+        
+        # Handle any remaining NaN values as backup
         if np.isnan(state_array).any():
             logger.warning("NaN detected in state array, replacing with defaults")
             state_array = np.nan_to_num(state_array, nan=0.0, posinf=1.0, neginf=0.0)
