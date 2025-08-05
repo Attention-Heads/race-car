@@ -706,8 +706,8 @@ def create_training_config() -> Dict[str, Any]:
             'max_steps': 1000,
             'reward_config': {
                 'distance_progress': 1.0,      # Primary reward: 1 point per unit distance
-                'crash_penalty': -1000.0,      # Strong crash penalty (equivalent to losing 1000 distance)
-                'time_penalty': -0.01,         # Very small time penalty to encourage efficiency
+                'crash_penalty': -20_000.0,      # Strong crash penalty (equivalent to losing 1000 distance)
+                'time_penalty': -15.0,         # Very small time penalty to encourage efficiency
                 # Removed: speed_bonus, proximity_penalty (let imitation learning handle these)
             }
         },
