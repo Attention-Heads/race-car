@@ -665,19 +665,22 @@ class EvolutionaryTrainer:
         logger.info(f"Saved training history to {history_path}")
 
 def load_evolved_agent(weights_path: str, obs_size: int) -> SimpleNeuralNet:
-    """Load a trained evolutionary agent"""
-    with open(weights_path, 'rb') as f:
-        data = pickle.load(f)
-    
-    # Reconstruct network
-    if 'network_architecture' in data:
-        layer_sizes = data['network_architecture']
-        network = SimpleNeuralNet(layer_sizes[0], layer_sizes[1:-1], layer_sizes[-1])
-    else:
-        # Fallback to default architecture
+    """Load a trained evolutionary agent (pickle or torch state_dict)"""
+    try:
+        with open(weights_path, 'rb') as f:
+            data = pickle.load(f)
+        # Reconstruct network from pickled data
+        if 'network_architecture' in data:
+            layer_sizes = data['network_architecture']
+            network = SimpleNeuralNet(layer_sizes[0], layer_sizes[1:-1], layer_sizes[-1])
+        else:
+            network = SimpleNeuralNet(obs_size)
+        network.set_weights(data['weights'])
+    except pickle.UnpicklingError:
+        # Fallback to loading PyTorch state_dict (.pt files)
+        state_dict = torch.load(weights_path, map_location='cpu')
         network = SimpleNeuralNet(obs_size)
-    
-    network.set_weights(data['weights'])
+        network.load_state_dict(state_dict)
     return network
 
 def test_evolved_agent(weights_path: str, env_config: Dict, num_episodes: int = 10):

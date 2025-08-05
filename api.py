@@ -1,35 +1,26 @@
 import uvicorn
 from fastapi import Body, FastAPI
-from stable_baselines3 import PPO
 import numpy as np
 import pandas as pd
 import joblib
 import logging
 import os
 from preprocessing_utils import StatePreprocessor
-from bc_model_wrapper import load_bc_model
+from evolutionary_model_wrapper import load_evolutionary_model, get_best_evolutionary_model
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Model type configuration - set to 'ppo' or 'bc'
-MODEL_TYPE = os.getenv("MODEL_TYPE", "ppo")  # Default to PPO
-
-# [+] Load your trained agent and use centralized preprocessing
+# [+] Load evolutionary model
 try:
-    if MODEL_TYPE.lower() == "bc":
-        # Load behavioral cloning model
-        AGENT = load_bc_model("./models/best_bc_model.pth")
-        print("Behavioral cloning model loaded successfully.")
-    else:
-        # Load PPO model (default)
-        AGENT = PPO.load("./models/best_model/best_model.zip")
-        print("PPO agent loaded successfully.")
+    best_model_path = get_best_evolutionary_model("./evolutionary_results")
+    AGENT = load_evolutionary_model(best_model_path)
+    print(f"Evolutionary model loaded successfully from {best_model_path}")
     
     PREPROCESSOR = StatePreprocessor(use_velocity_scaler=True)
-    print(f"Preprocessor loaded successfully. Using {MODEL_TYPE.upper()} model.")
+    print("Preprocessor loaded successfully. Using EVOLUTIONARY model.")
 except Exception as e:
-    print(f"Could not load trained agent or preprocessor: {e}")
+    print(f"Could not load evolutionary model or preprocessor: {e}")
     AGENT = None
     PREPROCESSOR = None
 
@@ -60,11 +51,11 @@ def process_request_for_model(request: RaceCarPredictRequestDto) -> np.ndarray:
 
 @app.get('/')
 def root():
-    return {"message": f"Welcome to the Race Car API - Using {MODEL_TYPE.upper()} model"}
+    return {"message": "Welcome to the Race Car API - Using EVOLUTIONARY model"}
 
 @app.get('/model-info')
 def model_info():
-    return {"model_type": MODEL_TYPE.upper(), "model_loaded": AGENT is not None}
+    return {"model_type": "EVOLUTIONARY", "model_loaded": AGENT is not None}
 
 @app.post('/predict', response_model=RaceCarPredictResponseDto)
 def predict(request: RaceCarPredictRequestDto = Body(...)):
