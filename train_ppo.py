@@ -743,22 +743,22 @@ def create_training_config() -> Dict[str, Any]:
             'api_endpoint': 'http://localhost:8000/predict',
             'max_steps': 1000,
             'reward_config': {
-                'distance_progress': 1.0,      # Primary reward: 1 point per unit distance
-                'crash_penalty': -5_000.0,      # Strong crash penalty (equivalent to losing 1000 distance)
-                'time_penalty': -15.0,         # Very small time penalty to encourage efficiency
-                'speed_bonus': 0.1,            # Small bonus for maintaining speed
-                'proximity_penalty': -5,     # Small penalty for being too close to walls
+                'distance_progress': 1.0,      # Primary reward: 2 points per unit distance
+                'crash_penalty': -5_000.0,      # Strong crash penalty (equivalent to losing 2000 distance)
+                'time_penalty': 10.0,         # Very small time penalty to encourage efficiency
+                'speed_bonus': 0,            # Small bonus for maintaining speed
+                'proximity_penalty': -10,     # Small penalty for being too close to walls
             }
         },
         
         # PPO hyperparameters
         'ppo_config': {
             'learning_rate': 1e-4,         # Start with lower learning rate for gentle exploration
-            'n_steps': 2048,               # Steps to collect before update
+            'n_steps': 4096,               # Steps to collect before update
             'batch_size': 64,              # Batch size for training
             'n_epochs': 10,                # Number of epochs per update
             'gamma': 0.99,                 # Discount factor
-            'gae_lambda': 0.95,            # GAE parameter
+            'gae_lambda': 0.955,            # GAE parameter
             'clip_range': 0.2,             # PPO clip range
             'clip_range_vf': None,         # Value function clip range
             'ent_coef': 0.05,              # Start with higher entropy for gentle exploration
@@ -772,47 +772,47 @@ def create_training_config() -> Dict[str, Any]:
         'phased_training': {
             'enable_phased_training': True,
             'phases': [
-                # Phase 1: Gentle exploration around BC policy
+                # Phase 1: SURVIVAL & EXPLORATION (Focus on not crashing)
                 {
-                    'phase_name': 'gentle_exploration',
-                    'duration_timesteps': 30_000,
-                    'learning_rate': 1e-4,
-                    'ent_coef': 0.05,           # High entropy for exploration
-                    'clip_range': 0.1,          # Conservative clipping
-                    'n_epochs': 5,              # Fewer epochs to avoid overfitting
-                    'description': 'Conservative exploration around BC policy'
+                    'phase_name': 'survival_and_exploration',
+                    'duration_timesteps': 500_000,   # Longer phase to ensure survival is learned
+                    'learning_rate': 1e-4,          # Lower learning rate for stable learning of basics
+                    'ent_coef': 0.10,               # HIGH entropy to encourage maximum exploration
+                    'clip_range': 0.1,              # Conservative clipping
+                    'n_epochs': 5,
+                    'description': 'Goal: Learn to survive and explore the track without crashing.'
                 },
-                # Phase 2: Moderate learning
+                # Phase 2: RACE FUNDAMENTALS (Focus on making progress)
                 {
-                    'phase_name': 'moderate_learning',
+                    'phase_name': 'race_fundamentals',
                     'duration_timesteps': 40_000,
-                    'learning_rate': 2e-4,
-                    'ent_coef': 0.02,           # Medium entropy
-                    'clip_range': 0.15,         # Medium clipping
-                    'n_epochs': 8,              # More epochs for better learning
-                    'description': 'Balanced exploration and exploitation'
+                    'learning_rate': 2e-4,          # Increase learning rate slightly
+                    'ent_coef': 0.01,               # Reduce entropy as we start exploiting good actions
+                    'clip_range': 0.2,              # Standard clipping
+                    'n_epochs': 10,
+                    'description': 'Goal: Learn to move forward effectively and increase speed.'
                 },
-                # Phase 3: Aggressive optimization
+                # Phase 3: PERFORMANCE OPTIMIZATION (Focus on getting faster)
                 {
-                    'phase_name': 'aggressive_optimization',
-                    'duration_timesteps': 30_000,
-                    'learning_rate': 3e-4,
-                    'ent_coef': 0.01,           # Low entropy for exploitation
-                    'clip_range': 0.2,          # Standard clipping
-                    'n_epochs': 10,             # Full epochs for optimization
-                    'description': 'Focused optimization and exploitation'
+                    'phase_name': 'performance_optimization',
+                    'duration_timesteps': 20_000,   # Shorter phase for fine-tuning
+                    'learning_rate': 2e-5,          # Lower learning rate again for fine-tuning the policy
+                    'ent_coef': 0.001,              # VERY LOW entropy to perfect the learned policy
+                    'clip_range': 0.2,
+                    'n_epochs': 10,
+                    'description': 'Goal: Exploit the learned policy to achieve the best possible performance.'
                 }
             ]
         },
         
         # Training configuration
         'training_config': {
-            'total_timesteps': 100_000,    # Total training timesteps
+            'total_timesteps': 1_000_000,    # Total training timesteps
             'n_eval_episodes': 16,         # Episodes per evaluation
             'eval_freq': 5000,             # Evaluation frequency
             'save_freq': 10000,            # Model save frequency
-            'n_envs': 16,                  # Number of parallel environments
-            'use_subprocess': False,       # Use subprocess for parallel envs
+            'n_envs': 12,                  # Number of parallel environments
+            'use_subprocess': True,       # Use subprocess for parallel envs
         },
         
         # Visualization configuration
