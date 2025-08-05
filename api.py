@@ -5,16 +5,29 @@ import numpy as np
 import pandas as pd
 import joblib
 import logging
+import os
 from preprocessing_utils import StatePreprocessor
+from bc_model_wrapper import load_bc_model
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# [+] Load your trained PPO agent and use centralized preprocessing
+# Model type configuration - set to 'ppo' or 'bc'
+MODEL_TYPE = os.getenv("MODEL_TYPE", "ppo")  # Default to PPO
+
+# [+] Load your trained agent and use centralized preprocessing
 try:
-    AGENT = PPO.load("./models/ppo_initialized_with_bc.zip")
+    if MODEL_TYPE.lower() == "bc":
+        # Load behavioral cloning model
+        AGENT = load_bc_model("./models/best_bc_model.pth")
+        print("Behavioral cloning model loaded successfully.")
+    else:
+        # Load PPO model (default)
+        AGENT = PPO.load("./models/ppo_initialized_with_bc.zip")
+        print("PPO agent loaded successfully.")
+    
     PREPROCESSOR = StatePreprocessor(use_velocity_scaler=True)
-    print("Trained agent and preprocessor loaded successfully.")
+    print(f"Preprocessor loaded successfully. Using {MODEL_TYPE.upper()} model.")
 except Exception as e:
     print(f"Could not load trained agent or preprocessor: {e}")
     AGENT = None
@@ -40,7 +53,11 @@ def process_request_for_model(request: RaceCarPredictRequestDto) -> np.ndarray:
 
 @app.get('/')
 def root():
-    return {"message": "Welcome to the Race Car API"}
+    return {"message": f"Welcome to the Race Car API - Using {MODEL_TYPE.upper()} model"}
+
+@app.get('/model-info')
+def model_info():
+    return {"model_type": MODEL_TYPE.upper(), "model_loaded": AGENT is not None}
 
 @app.post('/predict', response_model=RaceCarPredictResponseDto)
 def predict(request: RaceCarPredictRequestDto = Body(...)):
@@ -69,7 +86,7 @@ def predict(request: RaceCarPredictRequestDto = Body(...)):
         action_mapping = {0: 'NOTHING', 1: 'ACCELERATE', 2: 'DECELERATE', 3: 'STEER_LEFT', 4: 'STEER_RIGHT'}
         action_name = action_mapping.get(int(action_num), 'NOTHING')
         
-        return RaceCarPredictResponseDto(actions=[action_name]*10)
+        return RaceCarPredictResponseDto(actions=[action_name]*2)
         
     except Exception as e:
         logger.error(f"Error in prediction: {e}")

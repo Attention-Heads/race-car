@@ -236,6 +236,7 @@ class ImitationLearner:
         train_dataset = ExpertDataset(X_train, y_train)
         val_dataset = ExpertDataset(X_val, y_val)
         test_dataset = ExpertDataset(X_test, y_test)
+        print(X_test[1])
         
         train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
         val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)

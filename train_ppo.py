@@ -404,11 +404,10 @@ def create_training_config() -> Dict[str, Any]:
             'api_endpoint': 'http://localhost:8000/predict',
             'max_steps': 1000,
             'reward_config': {
-                'distance_progress': 1.0,      # Reward for making progress
-                'crash_penalty': -100.0,       # Penalty for crashing
-                'time_penalty': -0.1,          # Small penalty per step
-                'speed_bonus': 0.1,            # Bonus for maintaining speed
-                'proximity_penalty': -0.5      # Penalty for getting close to obstacles
+                'distance_progress': 1.0,      # Primary reward: 1 point per unit distance
+                'crash_penalty': -1000.0,      # Strong crash penalty (equivalent to losing 1000 distance)
+                'time_penalty': -0.01,         # Very small time penalty to encourage efficiency
+                # Removed: speed_bonus, proximity_penalty (let imitation learning handle these)
             }
         },
         

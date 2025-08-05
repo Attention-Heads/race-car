@@ -1,30 +1,46 @@
 #!/usr/bin/env python3
 """
 Simple script to quickly test model predictions against expert data
+Supports both PPO and Behavioral Cloning models
 """
 
 import pandas as pd
 import numpy as np
 import joblib
+import argparse
 from stable_baselines3 import PPO
 from collections import Counter
 from preprocessing_utils import StatePreprocessor
+from bc_model_wrapper import load_bc_model
 
-def load_model_and_scaler():
+def load_model_and_scaler(model_type="ppo"):
     """Load the trained model and preprocessor."""
     try:
-        agent = PPO.load("./models/ppo_initialized_with_bc.zip")
-        print("✓ Model loaded successfully")
+        if model_type.lower() == "bc":
+            agent = load_bc_model("./models/best_bc_model.pth")
+            print(f"✓ Behavioral Cloning model loaded successfully")
+        else:
+            agent = PPO.load("./models/ppo_initialized_with_bc.zip")
+            print(f"✓ PPO model loaded successfully")
     except Exception as e:
-        print(f"✗ Failed to load model: {e}")
+        print(f"✗ Failed to load {model_type.upper()} model: {e}")
         return None, None
     
     try:
         preprocessor = StatePreprocessor(use_velocity_scaler=True)
+        if preprocessor.velocity_scaler is not None:
+            print("✓ Velocity scaler loaded successfully")
+            print(f"  Scaler mean: {preprocessor.velocity_scaler.mean_}")
+            print(f"  Scaler scale: {preprocessor.velocity_scaler.scale_}")
+        else:
+            print("⚠ WARNING: No velocity scaler found! This will cause preprocessing mismatch.")
+            print("  The model was likely trained with velocity scaling, but scaler file is missing.")
+            print("  This explains the poor accuracy - please retrain or regenerate the scaler.")
         print("✓ Preprocessor loaded successfully")
     except Exception as e:
         print(f"✗ Failed to load preprocessor: {e}")
         preprocessor = StatePreprocessor(use_velocity_scaler=False)
+        print("✓ Fallback preprocessor loaded (no velocity scaling)")
     
     return agent, preprocessor
 
@@ -43,12 +59,12 @@ def predict_action(agent, state_array):
         print(f"Prediction error: {e}")
         return 'NOTHING'
 
-def test_sample_accuracy(sample_size=1000):
+def test_sample_accuracy(sample_size=1000, model_type="ppo"):
     """Test model accuracy on a sample of the expert data."""
-    print("Loading model and data...")
+    print(f"Loading {model_type.upper()} model and data...")
     
     # Load model
-    agent, preprocessor = load_model_and_scaler()
+    agent, preprocessor = load_model_and_scaler(model_type)
     if agent is None or preprocessor is None:
         return
     
@@ -60,13 +76,17 @@ def test_sample_accuracy(sample_size=1000):
         print(f"✗ Failed to load data: {e}")
         return
     
+    # Filter out NOTHING actions
+    df_filtered = df[df['action'] != 'NOTHING']
+    print(f"✓ Filtered out NOTHING actions: {len(df_filtered)} rows remaining (removed {len(df) - len(df_filtered)} NOTHING rows)")
+    
     # Sample data
-    if sample_size < len(df):
-        df_sample = df.sample(n=sample_size, random_state=42)
+    if sample_size < len(df_filtered):
+        df_sample = df_filtered.sample(n=sample_size, random_state=42)
         print(f"Testing on random sample of {sample_size} rows")
     else:
-        df_sample = df
-        print(f"Testing on all {len(df)} rows")
+        df_sample = df_filtered
+        print(f"Testing on all {len(df_filtered)} rows")
     
     # Run predictions
     print("\nRunning predictions...")
@@ -95,7 +115,7 @@ def test_sample_accuracy(sample_size=1000):
     accuracy = correct / total if total > 0 else 0
     
     print(f"\n" + "="*50)
-    print("RESULTS")
+    print(f"RESULTS - {model_type.upper()} MODEL")
     print("="*50)
     print(f"Total samples tested: {total}")
     print(f"Correct predictions: {correct}")
@@ -130,23 +150,20 @@ def test_sample_accuracy(sample_size=1000):
         'predicted_action': predictions,
         'correct': [t == p for t, p in zip(ground_truth, predictions)]
     })
-    results_df.to_csv('quick_test_results.csv', index=False)
-    print(f"\nDetailed results saved to 'quick_test_results.csv'")
+    results_filename = f'quick_test_results_{model_type}.csv'
+    results_df.to_csv(results_filename, index=False)
+    print(f"\nDetailed results saved to '{results_filename}'")
     
     return accuracy
 
 if __name__ == "__main__":
-    import sys
+    parser = argparse.ArgumentParser(description='Test model predictions against expert data')
+    parser.add_argument('--sample-size', type=int, default=1000, 
+                       help='Number of samples to test (default: 1000)')
+    parser.add_argument('--model-type', type=str, choices=['ppo', 'bc'], default='ppo',
+                       help='Model type to test: ppo or bc (default: ppo)')
     
-    # Default sample size
-    sample_size = 1000
+    args = parser.parse_args()
     
-    # Check for command line argument
-    if len(sys.argv) > 1:
-        try:
-            sample_size = int(sys.argv[1])
-        except ValueError:
-            print("Usage: python quick_test.py [sample_size]")
-            sys.exit(1)
-    
-    test_sample_accuracy(sample_size)
+    print(f"Testing {args.model_type.upper()} model with {args.sample_size} samples")
+    test_sample_accuracy(args.sample_size, args.model_type)
