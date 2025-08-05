@@ -34,12 +34,11 @@ class RaceCarEnv(gym.Env):
         # State variables
         self.current_state_dto = None
         self.previous_distance = 0.0
-        self.reward_weights = {
-            'distance_progress': 1.5,
-            'crash_penalty': -100.0,
-            'time_penalty': -0.1,
-            'speed_bonus': 0.05
-        }
+        
+        self.reward_weights = self.config.get('reward_config')
+        
+        # Log the reward configuration being used
+        logger.info(f"Environment initialized with reward weights: {self.reward_weights}")
 
     def reset(self, seed: int = None, options: Dict = None) -> Tuple[np.ndarray, Dict]:
         super().reset(seed=seed)
@@ -97,22 +96,30 @@ class RaceCarEnv(gym.Env):
         return state_array
 
     def _calculate_reward(self, current_dto: Dict) -> float:
+        """
+        Calculate reward based on the current state.
+        Uses reward configuration passed from training script for single source of truth.
+        """
         reward = 0.0
+        
         # Reward for distance covered
         distance_delta = current_dto['distance'] - self.previous_distance
-        reward += distance_delta * self.reward_weights['distance_progress']
+        if 'distance_progress' in self.reward_weights:
+            reward += distance_delta * self.reward_weights['distance_progress']
         self.previous_distance = current_dto['distance']
         
         # Penalty for crashing
-        if current_dto['did_crash']:
+        if current_dto['did_crash'] and 'crash_penalty' in self.reward_weights:
             reward += self.reward_weights['crash_penalty']
         
         # Small penalty per tick to encourage finishing faster
-        reward += self.reward_weights['time_penalty']
+        if 'time_penalty' in self.reward_weights:
+            reward += self.reward_weights['time_penalty']
 
-        # Small bonus for speed
-        speed = np.linalg.norm([current_dto['velocity']['x'], current_dto['velocity']['y']])
-        reward += speed * self.reward_weights['speed_bonus']
+        # Optional speed bonus (only if configured)
+        if 'speed_bonus' in self.reward_weights and self.reward_weights['speed_bonus'] != 0:
+            speed = np.linalg.norm([current_dto['velocity']['x'], current_dto['velocity']['y']])
+            reward += speed * self.reward_weights['speed_bonus']
         
         return reward
         

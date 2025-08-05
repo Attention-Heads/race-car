@@ -23,7 +23,7 @@ try:
         print("Behavioral cloning model loaded successfully.")
     else:
         # Load PPO model (default)
-        AGENT = PPO.load("./models/final_model.zip")
+        AGENT = PPO.load("./models/best_model/best_model.zip")
         print("PPO agent loaded successfully.")
     
     PREPROCESSOR = StatePreprocessor(use_velocity_scaler=True)

@@ -72,8 +72,9 @@ class GameSimulation:
         
         ego_velocity = Vector(10, 0)
         ego = Car("yellow", ego_velocity, lane=middle_lane, target_height=int(lane_height * 0.8))
-        ego.x = (SCREEN_WIDTH // 4) # Start further back
-        ego.y = int((middle_lane.y_start + middle_lane.y_end) / 2 - ego.sprite.get_height() / 2)
+        ego_sprite = ego.sprite
+        ego.x = (SCREEN_WIDTH // 2) - (ego_sprite.get_width() // 2)  # Match real game starting position
+        ego.y = int((middle_lane.y_start + middle_lane.y_end) / 2 - ego_sprite.get_height() / 2)
         self.state['ego'] = ego
 
         sensor_options = [
