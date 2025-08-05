@@ -33,8 +33,18 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Set matplotlib style for better-looking plots
-plt.style.use('seaborn-v0_8')
-sns.set_palette("husl")
+try:
+    plt.style.use('seaborn-v0_8')
+except OSError:
+    # Fallback to a default style if seaborn style is not available
+    plt.style.use('default')
+    logger.warning("Seaborn style not available, using default matplotlib style")
+
+# Set color palette
+try:
+    sns.set_palette("husl")
+except Exception as e:
+    logger.warning(f"Could not set seaborn palette: {e}")
 
 class TrainingVisualizer:
     """
@@ -108,391 +118,419 @@ class TrainingVisualizer:
     
     def create_training_curves(self):
         """Create comprehensive training curve visualizations."""
-        if not self.training_metrics['timesteps']:
-            logger.warning("No training metrics to plot")
-            return
+        try:
+            if not self.training_metrics['timesteps']:
+                logger.warning("No training metrics to plot")
+                return
+                
+            # Create subplot figure
+            fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+            fig.suptitle(f'PPO Training Curves - {self.timestamp}', fontsize=16, fontweight='bold')
             
-        # Create subplot figure
-        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
-        fig.suptitle(f'PPO Training Curves - {self.timestamp}', fontsize=16, fontweight='bold')
-        
-        # Episode Rewards
-        if self.training_metrics['episode_rewards']:
-            axes[0, 0].plot(self.training_metrics['timesteps'], self.training_metrics['episode_rewards'], 
-                           color='blue', alpha=0.7, linewidth=1.5)
-            axes[0, 0].set_title('Episode Rewards Over Time')
-            axes[0, 0].set_xlabel('Training Timesteps')
-            axes[0, 0].set_ylabel('Episode Reward')
-            axes[0, 0].grid(True, alpha=0.3)
+            # Episode Rewards
+            if self.training_metrics['episode_rewards']:
+                axes[0, 0].plot(self.training_metrics['timesteps'], self.training_metrics['episode_rewards'], 
+                               color='blue', alpha=0.7, linewidth=1.5)
+                axes[0, 0].set_title('Episode Rewards Over Time')
+                axes[0, 0].set_xlabel('Training Timesteps')
+                axes[0, 0].set_ylabel('Episode Reward')
+                axes[0, 0].grid(True, alpha=0.3)
+                
+                # Add moving average
+                if len(self.training_metrics['episode_rewards']) > 10:
+                    window = min(50, len(self.training_metrics['episode_rewards']) // 10)
+                    rewards_df = pd.Series(self.training_metrics['episode_rewards'])
+                    moving_avg = rewards_df.rolling(window=window, center=True).mean()
+                    axes[0, 0].plot(self.training_metrics['timesteps'], moving_avg, 
+                                   color='red', linewidth=2, label=f'Moving Avg ({window})')
+                    axes[0, 0].legend()
             
-            # Add moving average
-            if len(self.training_metrics['episode_rewards']) > 10:
-                window = min(50, len(self.training_metrics['episode_rewards']) // 10)
-                rewards_df = pd.Series(self.training_metrics['episode_rewards'])
-                moving_avg = rewards_df.rolling(window=window, center=True).mean()
-                axes[0, 0].plot(self.training_metrics['timesteps'], moving_avg, 
-                               color='red', linewidth=2, label=f'Moving Avg ({window})')
-                axes[0, 0].legend()
-        
-        # Episode Lengths
-        if self.training_metrics['episode_lengths']:
-            axes[0, 1].plot(self.training_metrics['timesteps'], self.training_metrics['episode_lengths'], 
-                           color='green', alpha=0.7, linewidth=1.5)
-            axes[0, 1].set_title('Episode Lengths Over Time')
-            axes[0, 1].set_xlabel('Training Timesteps')
-            axes[0, 1].set_ylabel('Episode Length')
-            axes[0, 1].grid(True, alpha=0.3)
-        
-        # Crash Rates
-        if self.training_metrics['crash_rates']:
-            axes[0, 2].plot(self.training_metrics['timesteps'], self.training_metrics['crash_rates'], 
-                           color='red', alpha=0.7, linewidth=1.5)
-            axes[0, 2].set_title('Crash Rate Over Time')
-            axes[0, 2].set_xlabel('Training Timesteps')
-            axes[0, 2].set_ylabel('Crash Rate (%)')
-            axes[0, 2].grid(True, alpha=0.3)
-        
-        # Learning Rate
-        if self.training_metrics['learning_rates']:
-            axes[1, 0].plot(self.training_metrics['timesteps'], self.training_metrics['learning_rates'], 
-                           color='purple', alpha=0.7, linewidth=1.5)
-            axes[1, 0].set_title('Learning Rate Schedule')
-            axes[1, 0].set_xlabel('Training Timesteps')
-            axes[1, 0].set_ylabel('Learning Rate')
-            axes[1, 0].grid(True, alpha=0.3)
-            axes[1, 0].set_yscale('log')
-        
-        # Policy and Value Losses
-        if self.training_metrics['policy_losses'] and self.training_metrics['value_losses']:
-            axes[1, 1].plot(self.training_metrics['timesteps'], self.training_metrics['policy_losses'], 
-                           color='orange', alpha=0.7, linewidth=1.5, label='Policy Loss')
-            axes[1, 1].plot(self.training_metrics['timesteps'], self.training_metrics['value_losses'], 
-                           color='cyan', alpha=0.7, linewidth=1.5, label='Value Loss')
-            axes[1, 1].set_title('Policy and Value Losses')
-            axes[1, 1].set_xlabel('Training Timesteps')
-            axes[1, 1].set_ylabel('Loss')
-            axes[1, 1].legend()
-            axes[1, 1].grid(True, alpha=0.3)
-        
-        # Explained Variance
-        if self.training_metrics['explained_variances']:
-            axes[1, 2].plot(self.training_metrics['timesteps'], self.training_metrics['explained_variances'], 
-                           color='brown', alpha=0.7, linewidth=1.5)
-            axes[1, 2].set_title('Explained Variance')
-            axes[1, 2].set_xlabel('Training Timesteps')
-            axes[1, 2].set_ylabel('Explained Variance')
-            axes[1, 2].grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        save_path = self.dirs['training_curves'] / f"training_curves_{self.timestamp}.png"
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        logger.info(f"Training curves saved to: {save_path}")
+            # Episode Lengths
+            if self.training_metrics['episode_lengths']:
+                axes[0, 1].plot(self.training_metrics['timesteps'], self.training_metrics['episode_lengths'], 
+                               color='green', alpha=0.7, linewidth=1.5)
+                axes[0, 1].set_title('Episode Lengths Over Time')
+                axes[0, 1].set_xlabel('Training Timesteps')
+                axes[0, 1].set_ylabel('Episode Length')
+                axes[0, 1].grid(True, alpha=0.3)
+            
+            # Crash Rates
+            if self.training_metrics['crash_rates']:
+                axes[0, 2].plot(self.training_metrics['timesteps'], self.training_metrics['crash_rates'], 
+                               color='red', alpha=0.7, linewidth=1.5)
+                axes[0, 2].set_title('Crash Rate Over Time')
+                axes[0, 2].set_xlabel('Training Timesteps')
+                axes[0, 2].set_ylabel('Crash Rate (%)')
+                axes[0, 2].grid(True, alpha=0.3)
+            
+            # Learning Rate
+            if self.training_metrics['learning_rates']:
+                axes[1, 0].plot(self.training_metrics['timesteps'], self.training_metrics['learning_rates'], 
+                               color='purple', alpha=0.7, linewidth=1.5)
+                axes[1, 0].set_title('Learning Rate Schedule')
+                axes[1, 0].set_xlabel('Training Timesteps')
+                axes[1, 0].set_ylabel('Learning Rate')
+                axes[1, 0].grid(True, alpha=0.3)
+                axes[1, 0].set_yscale('log')
+            
+            # Policy and Value Losses
+            if self.training_metrics['policy_losses'] and self.training_metrics['value_losses']:
+                axes[1, 1].plot(self.training_metrics['timesteps'], self.training_metrics['policy_losses'], 
+                               color='orange', alpha=0.7, linewidth=1.5, label='Policy Loss')
+                axes[1, 1].plot(self.training_metrics['timesteps'], self.training_metrics['value_losses'], 
+                               color='cyan', alpha=0.7, linewidth=1.5, label='Value Loss')
+                axes[1, 1].set_title('Policy and Value Losses')
+                axes[1, 1].set_xlabel('Training Timesteps')
+                axes[1, 1].set_ylabel('Loss')
+                axes[1, 1].legend()
+                axes[1, 1].grid(True, alpha=0.3)
+            
+            # Explained Variance
+            if self.training_metrics['explained_variances']:
+                axes[1, 2].plot(self.training_metrics['timesteps'], self.training_metrics['explained_variances'], 
+                               color='brown', alpha=0.7, linewidth=1.5)
+                axes[1, 2].set_title('Explained Variance')
+                axes[1, 2].set_xlabel('Training Timesteps')
+                axes[1, 2].set_ylabel('Explained Variance')
+                axes[1, 2].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            save_path = self.dirs['training_curves'] / f"training_curves_{self.timestamp}.png"
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.close()
+            logger.info(f"Training curves saved to: {save_path}")
+            
+        except Exception as e:
+            logger.error(f"Error creating training curves: {e}")
+            plt.close('all')  # Clean up any open figures
     
     def create_evaluation_plots(self):
         """Create evaluation performance plots."""
-        if not self.evaluation_metrics['eval_timesteps']:
-            logger.warning("No evaluation metrics to plot")
-            return
+        try:
+            if not self.evaluation_metrics['eval_timesteps']:
+                logger.warning("No evaluation metrics to plot")
+                return
+                
+            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+            fig.suptitle(f'PPO Evaluation Metrics - {self.timestamp}', fontsize=16, fontweight='bold')
             
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        fig.suptitle(f'PPO Evaluation Metrics - {self.timestamp}', fontsize=16, fontweight='bold')
-        
-        # Mean Rewards with Error Bars
-        if self.evaluation_metrics['mean_rewards'] and self.evaluation_metrics['std_rewards']:
-            axes[0, 0].errorbar(self.evaluation_metrics['eval_timesteps'], 
-                               self.evaluation_metrics['mean_rewards'],
-                               yerr=self.evaluation_metrics['std_rewards'],
-                               color='blue', capsize=5, capthick=2, linewidth=2)
-            axes[0, 0].set_title('Evaluation Mean Reward ± Std')
-            axes[0, 0].set_xlabel('Training Timesteps')
-            axes[0, 0].set_ylabel('Mean Episode Reward')
-            axes[0, 0].grid(True, alpha=0.3)
-        
-        # Success vs Crash Rates
-        if self.evaluation_metrics['crash_rates'] and self.evaluation_metrics['success_rates']:
-            axes[0, 1].plot(self.evaluation_metrics['eval_timesteps'], 
-                           self.evaluation_metrics['crash_rates'], 
-                           color='red', linewidth=2, label='Crash Rate', marker='o')
-            axes[0, 1].plot(self.evaluation_metrics['eval_timesteps'], 
-                           self.evaluation_metrics['success_rates'], 
-                           color='green', linewidth=2, label='Success Rate', marker='s')
-            axes[0, 1].set_title('Success vs Crash Rates')
-            axes[0, 1].set_xlabel('Training Timesteps')
-            axes[0, 1].set_ylabel('Rate (%)')
-            axes[0, 1].legend()
-            axes[0, 1].grid(True, alpha=0.3)
-        
-        # Average Distance Traveled
-        if self.evaluation_metrics['average_distances']:
-            axes[1, 0].plot(self.evaluation_metrics['eval_timesteps'], 
-                           self.evaluation_metrics['average_distances'], 
-                           color='purple', linewidth=2, marker='d')
-            axes[1, 0].set_title('Average Distance Traveled')
-            axes[1, 0].set_xlabel('Training Timesteps')
-            axes[1, 0].set_ylabel('Average Distance')
-            axes[1, 0].grid(True, alpha=0.3)
-        
-        # Performance Improvement Rate
-        if len(self.evaluation_metrics['mean_rewards']) > 1:
-            rewards = np.array(self.evaluation_metrics['mean_rewards'])
-            improvement_rate = np.diff(rewards) / rewards[:-1] * 100
-            axes[1, 1].plot(self.evaluation_metrics['eval_timesteps'][1:], 
-                           improvement_rate, 
-                           color='orange', linewidth=2, marker='^')
-            axes[1, 1].axhline(y=0, color='black', linestyle='--', alpha=0.5)
-            axes[1, 1].set_title('Performance Improvement Rate')
-            axes[1, 1].set_xlabel('Training Timesteps')
-            axes[1, 1].set_ylabel('Improvement Rate (%)')
-            axes[1, 1].grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        save_path = self.dirs['evaluation_metrics'] / f"evaluation_metrics_{self.timestamp}.png"
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        logger.info(f"Evaluation plots saved to: {save_path}")
+            # Mean Rewards with Error Bars
+            if self.evaluation_metrics['mean_rewards'] and self.evaluation_metrics['std_rewards']:
+                axes[0, 0].errorbar(self.evaluation_metrics['eval_timesteps'], 
+                                   self.evaluation_metrics['mean_rewards'],
+                                   yerr=self.evaluation_metrics['std_rewards'],
+                                   color='blue', capsize=5, capthick=2, linewidth=2)
+                axes[0, 0].set_title('Evaluation Mean Reward ± Std')
+                axes[0, 0].set_xlabel('Training Timesteps')
+                axes[0, 0].set_ylabel('Mean Episode Reward')
+                axes[0, 0].grid(True, alpha=0.3)
+            
+            # Success vs Crash Rates
+            if self.evaluation_metrics['crash_rates'] and self.evaluation_metrics['success_rates']:
+                axes[0, 1].plot(self.evaluation_metrics['eval_timesteps'], 
+                               self.evaluation_metrics['crash_rates'], 
+                               color='red', linewidth=2, label='Crash Rate', marker='o')
+                axes[0, 1].plot(self.evaluation_metrics['eval_timesteps'], 
+                               self.evaluation_metrics['success_rates'], 
+                               color='green', linewidth=2, label='Success Rate', marker='s')
+                axes[0, 1].set_title('Success vs Crash Rates')
+                axes[0, 1].set_xlabel('Training Timesteps')
+                axes[0, 1].set_ylabel('Rate (%)')
+                axes[0, 1].legend()
+                axes[0, 1].grid(True, alpha=0.3)
+            
+            # Average Distance Traveled
+            if self.evaluation_metrics['average_distances']:
+                axes[1, 0].plot(self.evaluation_metrics['eval_timesteps'], 
+                               self.evaluation_metrics['average_distances'], 
+                               color='purple', linewidth=2, marker='d')
+                axes[1, 0].set_title('Average Distance Traveled')
+                axes[1, 0].set_xlabel('Training Timesteps')
+                axes[1, 0].set_ylabel('Average Distance')
+                axes[1, 0].grid(True, alpha=0.3)
+            
+            # Performance Improvement Rate
+            if len(self.evaluation_metrics['mean_rewards']) > 1:
+                rewards = np.array(self.evaluation_metrics['mean_rewards'])
+                # Avoid division by zero
+                rewards_nonzero = np.where(rewards[:-1] == 0, 1e-8, rewards[:-1])
+                improvement_rate = np.diff(rewards) / rewards_nonzero * 100
+                axes[1, 1].plot(self.evaluation_metrics['eval_timesteps'][1:], 
+                               improvement_rate, 
+                               color='orange', linewidth=2, marker='^')
+                axes[1, 1].axhline(y=0, color='black', linestyle='--', alpha=0.5)
+                axes[1, 1].set_title('Performance Improvement Rate')
+                axes[1, 1].set_xlabel('Training Timesteps')
+                axes[1, 1].set_ylabel('Improvement Rate (%)')
+                axes[1, 1].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            save_path = self.dirs['evaluation_metrics'] / f"evaluation_metrics_{self.timestamp}.png"
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.close()
+            logger.info(f"Evaluation plots saved to: {save_path}")
+            
+        except Exception as e:
+            logger.error(f"Error creating evaluation plots: {e}")
+            plt.close('all')  # Clean up any open figures
     
     def create_phased_training_plots(self):
         """Create visualizations specific to phased training."""
-        if not self.training_metrics['timesteps'] or not self.training_metrics['phase_transitions']:
-            logger.warning("No phased training metrics to plot")
-            return
-            
-        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
-        fig.suptitle(f'Phased Training Analysis - {self.timestamp}', fontsize=16, fontweight='bold')
-        
-        # Hyperparameter evolution over time
-        if self.training_metrics['learning_rates'] and self.training_metrics['entropy_coefs']:
-            ax1 = axes[0, 0]
-            ax2 = ax1.twinx()
-            
-            line1 = ax1.plot(self.training_metrics['timesteps'], self.training_metrics['learning_rates'], 
-                            color='blue', linewidth=2, label='Learning Rate')
-            line2 = ax2.plot(self.training_metrics['timesteps'], self.training_metrics['entropy_coefs'], 
-                            color='red', linewidth=2, label='Entropy Coef')
-            
-            ax1.set_xlabel('Training Timesteps')
-            ax1.set_ylabel('Learning Rate', color='blue')
-            ax2.set_ylabel('Entropy Coefficient', color='red')
-            ax1.set_title('Hyperparameter Evolution')
-            ax1.grid(True, alpha=0.3)
-            
-            # Add phase transition markers
-            for transition_step in self.training_metrics['phase_transitions']:
-                ax1.axvline(x=transition_step, color='gray', linestyle='--', alpha=0.7)
-            
-            # Combine legends
-            lines = line1 + line2
-            labels = [l.get_label() for l in lines]
-            ax1.legend(lines, labels, loc='upper left')
-        
-        # Clip range evolution
-        if self.training_metrics['clip_ranges']:
-            axes[0, 1].plot(self.training_metrics['timesteps'], self.training_metrics['clip_ranges'], 
-                           color='green', linewidth=2, marker='o', markersize=3)
-            axes[0, 1].set_title('Clip Range Evolution')
-            axes[0, 1].set_xlabel('Training Timesteps')
-            axes[0, 1].set_ylabel('Clip Range')
-            axes[0, 1].grid(True, alpha=0.3)
-            
-            # Add phase transition markers
-            for transition_step in self.training_metrics['phase_transitions']:
-                axes[0, 1].axvline(x=transition_step, color='gray', linestyle='--', alpha=0.7)
-        
-        # Performance by phase (if we have episode rewards)
-        if self.training_metrics['episode_rewards'] and self.training_metrics['current_phases']:
-            phase_rewards = {}
-            for i, (timestep, reward, phase) in enumerate(zip(
-                self.training_metrics['timesteps'], 
-                self.training_metrics['episode_rewards'],
-                self.training_metrics['current_phases']
-            )):
-                if phase not in phase_rewards:
-                    phase_rewards[phase] = []
-                phase_rewards[phase].append(reward)
-            
-            phases = list(phase_rewards.keys())
-            mean_rewards = [np.mean(phase_rewards[phase]) for phase in phases]
-            std_rewards = [np.std(phase_rewards[phase]) for phase in phases]
-            
-            axes[1, 0].bar(phases, mean_rewards, yerr=std_rewards, capsize=5, 
-                          color=['lightcoral', 'lightblue', 'lightgreen'][:len(phases)])
-            axes[1, 0].set_title('Average Reward by Phase')
-            axes[1, 0].set_xlabel('Training Phase')
-            axes[1, 0].set_ylabel('Average Episode Reward')
-            axes[1, 0].grid(True, alpha=0.3)
-        
-        # Learning progression visualization
-        if self.training_metrics['episode_rewards']:
-            # Smooth the rewards for better visualization
-            window_size = min(50, len(self.training_metrics['episode_rewards']) // 10)
-            if window_size > 1:
-                rewards_df = pd.Series(self.training_metrics['episode_rewards'])
-                smoothed_rewards = rewards_df.rolling(window=window_size, center=True).mean()
+        try:
+            if not self.training_metrics['timesteps'] or not self.training_metrics['phase_transitions']:
+                logger.warning("No phased training metrics to plot")
+                return
                 
-                axes[1, 1].plot(self.training_metrics['timesteps'], smoothed_rewards, 
-                               color='purple', linewidth=2, label=f'Smoothed Rewards (window={window_size})')
-                axes[1, 1].set_title('Learning Progression with Phase Transitions')
-                axes[1, 1].set_xlabel('Training Timesteps')
-                axes[1, 1].set_ylabel('Smoothed Episode Reward')
-                axes[1, 1].grid(True, alpha=0.3)
-                axes[1, 1].legend()
+            fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+            fig.suptitle(f'Phased Training Analysis - {self.timestamp}', fontsize=16, fontweight='bold')
+            
+            # Hyperparameter evolution over time
+            if self.training_metrics['learning_rates'] and self.training_metrics['entropy_coefs']:
+                ax1 = axes[0, 0]
+                ax2 = ax1.twinx()
                 
-                # Add phase transition markers with labels
-                colors = ['red', 'orange', 'green', 'blue', 'purple']
-                for i, transition_step in enumerate(self.training_metrics['phase_transitions']):
-                    color = colors[i % len(colors)]
-                    axes[1, 1].axvline(x=transition_step, color=color, linestyle='--', 
-                                      alpha=0.8, linewidth=2, label=f'Phase {i+2} Start')
-        
-        plt.tight_layout()
-        save_path = self.dirs['model_analysis'] / f"phased_training_analysis_{self.timestamp}.png"
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        logger.info(f"Phased training analysis saved to: {save_path}")
+                line1 = ax1.plot(self.training_metrics['timesteps'], self.training_metrics['learning_rates'], 
+                                color='blue', linewidth=2, label='Learning Rate')
+                line2 = ax2.plot(self.training_metrics['timesteps'], self.training_metrics['entropy_coefs'], 
+                                color='red', linewidth=2, label='Entropy Coef')
+                
+                ax1.set_xlabel('Training Timesteps')
+                ax1.set_ylabel('Learning Rate', color='blue')
+                ax2.set_ylabel('Entropy Coefficient', color='red')
+                ax1.set_title('Hyperparameter Evolution')
+                ax1.grid(True, alpha=0.3)
+                
+                # Add phase transition markers
+                for transition_step in self.training_metrics['phase_transitions']:
+                    ax1.axvline(x=transition_step, color='gray', linestyle='--', alpha=0.7)
+                
+                # Combine legends
+                lines = line1 + line2
+                labels = [l.get_label() for l in lines]
+                ax1.legend(lines, labels, loc='upper left')
+            
+            # Clip range evolution
+            if self.training_metrics['clip_ranges']:
+                axes[0, 1].plot(self.training_metrics['timesteps'], self.training_metrics['clip_ranges'], 
+                               color='green', linewidth=2, marker='o', markersize=3)
+                axes[0, 1].set_title('Clip Range Evolution')
+                axes[0, 1].set_xlabel('Training Timesteps')
+                axes[0, 1].set_ylabel('Clip Range')
+                axes[0, 1].grid(True, alpha=0.3)
+                
+                # Add phase transition markers
+                for transition_step in self.training_metrics['phase_transitions']:
+                    axes[0, 1].axvline(x=transition_step, color='gray', linestyle='--', alpha=0.7)
+            
+            # Performance by phase (if we have episode rewards)
+            if self.training_metrics['episode_rewards'] and self.training_metrics['current_phases']:
+                phase_rewards = {}
+                for i, (timestep, reward, phase) in enumerate(zip(
+                    self.training_metrics['timesteps'], 
+                    self.training_metrics['episode_rewards'],
+                    self.training_metrics['current_phases']
+                )):
+                    if phase not in phase_rewards:
+                        phase_rewards[phase] = []
+                    phase_rewards[phase].append(reward)
+                
+                phases = list(phase_rewards.keys())
+                mean_rewards = [np.mean(phase_rewards[phase]) for phase in phases]
+                std_rewards = [np.std(phase_rewards[phase]) for phase in phases]
+                
+                axes[1, 0].bar(phases, mean_rewards, yerr=std_rewards, capsize=5, 
+                              color=['lightcoral', 'lightblue', 'lightgreen'][:len(phases)])
+                axes[1, 0].set_title('Average Reward by Phase')
+                axes[1, 0].set_xlabel('Training Phase')
+                axes[1, 0].set_ylabel('Average Episode Reward')
+                axes[1, 0].grid(True, alpha=0.3)
+            
+            # Learning progression visualization
+            if self.training_metrics['episode_rewards']:
+                # Smooth the rewards for better visualization
+                window_size = min(50, len(self.training_metrics['episode_rewards']) // 10)
+                if window_size > 1:
+                    rewards_df = pd.Series(self.training_metrics['episode_rewards'])
+                    smoothed_rewards = rewards_df.rolling(window=window_size, center=True).mean()
+                    
+                    axes[1, 1].plot(self.training_metrics['timesteps'], smoothed_rewards, 
+                                   color='purple', linewidth=2, label=f'Smoothed Rewards (window={window_size})')
+                    axes[1, 1].set_title('Learning Progression with Phase Transitions')
+                    axes[1, 1].set_xlabel('Training Timesteps')
+                    axes[1, 1].set_ylabel('Smoothed Episode Reward')
+                    axes[1, 1].grid(True, alpha=0.3)
+                    axes[1, 1].legend()
+                    
+                    # Add phase transition markers with labels
+                    colors = ['red', 'orange', 'green', 'blue', 'purple']
+                    for i, transition_step in enumerate(self.training_metrics['phase_transitions']):
+                        color = colors[i % len(colors)]
+                        axes[1, 1].axvline(x=transition_step, color=color, linestyle='--', 
+                                          alpha=0.8, linewidth=2, label=f'Phase {i+2} Start')
+            
+            plt.tight_layout()
+            save_path = self.dirs['model_analysis'] / f"phased_training_analysis_{self.timestamp}.png"
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.close()
+            logger.info(f"Phased training analysis saved to: {save_path}")
+            
+        except Exception as e:
+            logger.error(f"Error creating phased training plots: {e}")
+            plt.close('all')  # Clean up any open figures
     
     def create_performance_summary(self, final_stats: Dict[str, Any]):
         """Create a comprehensive performance summary visualization."""
-        fig, axes = plt.subplots(2, 3, figsize=(18, 12))
-        fig.suptitle(f'PPO Training Summary - {self.timestamp}', fontsize=16, fontweight='bold')
-        
-        # Final performance statistics
-        def format_number(value, format_str):
-            """Safely format a number or return 'N/A'"""
-            if value == 'N/A' or value is None:
-                return 'N/A'
-            try:
-                return format_str.format(value)
-            except (ValueError, TypeError):
-                return 'N/A'
-        
-        total_timesteps = final_stats.get('total_timesteps', 'N/A')
-        total_timesteps_str = f"{total_timesteps:,}" if total_timesteps != 'N/A' else 'N/A'
-        
-        stats_text = f"""
-        Training Duration: {final_stats.get('training_duration', 'N/A')}
-        Total Timesteps: {total_timesteps_str}
-        Final Mean Reward: {format_number(final_stats.get('final_mean_reward', 'N/A'), '{:.2f}')}
-        Best Mean Reward: {format_number(final_stats.get('best_mean_reward', 'N/A'), '{:.2f}')}
-        Final Crash Rate: {format_number(final_stats.get('final_crash_rate', 'N/A'), '{:.1f}')}%
-        Best Success Rate: {format_number(final_stats.get('best_success_rate', 'N/A'), '{:.1f}')}%
-        """
-        
-        axes[0, 0].text(0.1, 0.5, stats_text, fontsize=12, verticalalignment='center',
-                       bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.7))
-        axes[0, 0].set_title('Training Statistics')
-        axes[0, 0].axis('off')
-        
-        # Reward distribution histogram (if we have episode data)
-        if self.training_metrics['episode_rewards']:
-            axes[0, 1].hist(self.training_metrics['episode_rewards'], bins=30, 
-                           alpha=0.7, color='blue', edgecolor='black')
-            axes[0, 1].set_title('Episode Reward Distribution')
-            axes[0, 1].set_xlabel('Episode Reward')
-            axes[0, 1].set_ylabel('Frequency')
-            axes[0, 1].grid(True, alpha=0.3)
-        
-        # Learning progress (reward improvement over time)
-        if self.evaluation_metrics['mean_rewards']:
-            reward_progress = np.array(self.evaluation_metrics['mean_rewards'])
-            if len(reward_progress) > 1:
-                normalized_progress = (reward_progress - reward_progress[0]) / np.abs(reward_progress[0]) * 100
-                axes[0, 2].plot(self.evaluation_metrics['eval_timesteps'], normalized_progress, 
-                               color='green', linewidth=3, marker='o')
-                axes[0, 2].axhline(y=0, color='black', linestyle='--', alpha=0.5)
-                axes[0, 2].set_title('Learning Progress (% Improvement)')
-                axes[0, 2].set_xlabel('Training Timesteps')
-                axes[0, 2].set_ylabel('Improvement from Start (%)')
-                axes[0, 2].grid(True, alpha=0.3)
-        
-        # Training stability (rolling standard deviation)
-        if len(self.training_metrics['episode_rewards']) > 20:
-            rewards_series = pd.Series(self.training_metrics['episode_rewards'])
-            rolling_std = rewards_series.rolling(window=20).std()
-            axes[1, 0].plot(self.training_metrics['timesteps'], rolling_std, 
-                           color='red', linewidth=2)
-            axes[1, 0].set_title('Training Stability (Rolling Std)')
-            axes[1, 0].set_xlabel('Training Timesteps')
-            axes[1, 0].set_ylabel('Reward Standard Deviation')
-            axes[1, 0].grid(True, alpha=0.3)
-        
-        # Action distribution (if available)
-        # This would require logging action data, which we'd need to implement
-        axes[1, 1].text(0.5, 0.5, 'Action Distribution\n(Feature coming soon)', 
-                        ha='center', va='center', fontsize=12,
-                        bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.7))
-        axes[1, 1].set_title('Action Distribution')
-        axes[1, 1].axis('off')
-        
-        # Model convergence indicator
-        if len(self.training_metrics['policy_losses']) > 10:
-            recent_losses = self.training_metrics['policy_losses'][-10:]
-            convergence_trend = np.polyfit(range(len(recent_losses)), recent_losses, 1)[0]
-            convergence_status = "Converging" if convergence_trend < 0 else "Still Learning"
+        try:
+            fig, axes = plt.subplots(2, 3, figsize=(18, 12))
+            fig.suptitle(f'PPO Training Summary - {self.timestamp}', fontsize=16, fontweight='bold')
             
-            axes[1, 2].plot(self.training_metrics['timesteps'][-10:], recent_losses, 
-                           color='purple', linewidth=3, marker='o')
-            axes[1, 2].set_title(f'Recent Convergence: {convergence_status}')
-            axes[1, 2].set_xlabel('Recent Timesteps')
-            axes[1, 2].set_ylabel('Policy Loss')
-            axes[1, 2].grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        save_path = self.dirs['performance_summary'] / f"performance_summary_{self.timestamp}.png"
-        plt.savefig(save_path, dpi=300, bbox_inches='tight')
-        plt.close()
-        logger.info(f"Performance summary saved to: {save_path}")
+            # Final performance statistics
+            def format_number(value, format_str):
+                """Safely format a number or return 'N/A'"""
+                if value == 'N/A' or value is None:
+                    return 'N/A'
+                try:
+                    return format_str.format(value)
+                except (ValueError, TypeError):
+                    return 'N/A'
+            
+            total_timesteps = final_stats.get('total_timesteps', 'N/A')
+            total_timesteps_str = f"{total_timesteps:,}" if total_timesteps != 'N/A' else 'N/A'
+            
+            stats_text = f"""
+            Training Duration: {final_stats.get('training_duration', 'N/A')}
+            Total Timesteps: {total_timesteps_str}
+            Final Mean Reward: {format_number(final_stats.get('final_mean_reward', 'N/A'), '{:.2f}')}
+            Best Mean Reward: {format_number(final_stats.get('best_mean_reward', 'N/A'), '{:.2f}')}
+            Final Crash Rate: {format_number(final_stats.get('final_crash_rate', 'N/A'), '{:.1f}')}%
+            Best Success Rate: {format_number(final_stats.get('best_success_rate', 'N/A'), '{:.1f}')}%
+            """
+            
+            axes[0, 0].text(0.1, 0.5, stats_text, fontsize=12, verticalalignment='center',
+                           bbox=dict(boxstyle="round,pad=0.3", facecolor="lightblue", alpha=0.7))
+            axes[0, 0].set_title('Training Statistics')
+            axes[0, 0].axis('off')
+            
+            # Reward distribution histogram (if we have episode data)
+            if self.training_metrics['episode_rewards']:
+                axes[0, 1].hist(self.training_metrics['episode_rewards'], bins=30, 
+                               alpha=0.7, color='blue', edgecolor='black')
+                axes[0, 1].set_title('Episode Reward Distribution')
+                axes[0, 1].set_xlabel('Episode Reward')
+                axes[0, 1].set_ylabel('Frequency')
+                axes[0, 1].grid(True, alpha=0.3)
+            
+            # Learning progress (reward improvement over time)
+            if self.evaluation_metrics['mean_rewards']:
+                reward_progress = np.array(self.evaluation_metrics['mean_rewards'])
+                if len(reward_progress) > 1:
+                    # Avoid division by zero
+                    first_reward = reward_progress[0] if reward_progress[0] != 0 else 1e-8
+                    normalized_progress = (reward_progress - reward_progress[0]) / np.abs(first_reward) * 100
+                    axes[0, 2].plot(self.evaluation_metrics['eval_timesteps'], normalized_progress, 
+                                   color='green', linewidth=3, marker='o')
+                    axes[0, 2].axhline(y=0, color='black', linestyle='--', alpha=0.5)
+                    axes[0, 2].set_title('Learning Progress (% Improvement)')
+                    axes[0, 2].set_xlabel('Training Timesteps')
+                    axes[0, 2].set_ylabel('Improvement from Start (%)')
+                    axes[0, 2].grid(True, alpha=0.3)
+            
+            # Training stability (rolling standard deviation)
+            if len(self.training_metrics['episode_rewards']) > 20:
+                rewards_series = pd.Series(self.training_metrics['episode_rewards'])
+                rolling_std = rewards_series.rolling(window=20).std()
+                axes[1, 0].plot(self.training_metrics['timesteps'], rolling_std, 
+                               color='red', linewidth=2)
+                axes[1, 0].set_title('Training Stability (Rolling Std)')
+                axes[1, 0].set_xlabel('Training Timesteps')
+                axes[1, 0].set_ylabel('Reward Standard Deviation')
+                axes[1, 0].grid(True, alpha=0.3)
+            
+            # Action distribution (if available)
+            # This would require logging action data, which we'd need to implement
+            axes[1, 1].text(0.5, 0.5, 'Action Distribution\n(Feature coming soon)', 
+                            ha='center', va='center', fontsize=12,
+                            bbox=dict(boxstyle="round,pad=0.3", facecolor="lightyellow", alpha=0.7))
+            axes[1, 1].set_title('Action Distribution')
+            axes[1, 1].axis('off')
+            
+            # Model convergence indicator
+            if len(self.training_metrics['policy_losses']) > 10:
+                recent_losses = self.training_metrics['policy_losses'][-10:]
+                convergence_trend = np.polyfit(range(len(recent_losses)), recent_losses, 1)[0]
+                convergence_status = "Converging" if convergence_trend < 0 else "Still Learning"
+                
+                axes[1, 2].plot(self.training_metrics['timesteps'][-10:], recent_losses, 
+                               color='purple', linewidth=3, marker='o')
+                axes[1, 2].set_title(f'Recent Convergence: {convergence_status}')
+                axes[1, 2].set_xlabel('Recent Timesteps')
+                axes[1, 2].set_ylabel('Policy Loss')
+                axes[1, 2].grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            save_path = self.dirs['performance_summary'] / f"performance_summary_{self.timestamp}.png"
+            plt.savefig(save_path, dpi=300, bbox_inches='tight')
+            plt.close()
+            logger.info(f"Performance summary saved to: {save_path}")
+            
+        except Exception as e:
+            logger.error(f"Error creating performance summary: {e}")
+            plt.close('all')  # Clean up any open figures
     
     def save_metrics_data(self):
         """Save all collected metrics to JSON and CSV files."""
-        # Save as JSON
-        all_metrics = {
-            'training_metrics': self.training_metrics,
-            'evaluation_metrics': self.evaluation_metrics,
-            'timestamp': self.timestamp
-        }
-        
-        json_path = self.session_dir / f"training_metrics_{self.timestamp}.json"
-        with open(json_path, 'w') as f:
-            json.dump(all_metrics, f, indent=2)
-        
-        # Save as CSV - only include metrics that have data and align lengths
-        if self.training_metrics['timesteps']:
-            # Find the length of the timesteps array (this should be the reference length)
-            base_length = len(self.training_metrics['timesteps'])
+        try:
+            # Save as JSON
+            all_metrics = {
+                'training_metrics': self.training_metrics,
+                'evaluation_metrics': self.evaluation_metrics,
+                'timestamp': self.timestamp
+            }
             
-            # Create a clean dictionary with only metrics that have data and proper length
-            clean_training_metrics = {}
-            for key, values in self.training_metrics.items():
-                if values and len(values) == base_length:
-                    clean_training_metrics[key] = values
-                elif values and len(values) != base_length:
-                    logger.warning(f"Metric '{key}' has length {len(values)} but expected {base_length}. Skipping from CSV.")
+            json_path = self.session_dir / f"training_metrics_{self.timestamp}.json"
+            with open(json_path, 'w') as f:
+                json.dump(all_metrics, f, indent=2)
             
-            if clean_training_metrics:
-                training_df = pd.DataFrame(clean_training_metrics)
-                csv_path = self.session_dir / f"training_data_{self.timestamp}.csv"
-                training_df.to_csv(csv_path, index=False)
-                logger.info(f"Training CSV saved with {len(clean_training_metrics)} metrics")
-        
-        if self.evaluation_metrics['eval_timesteps']:
-            # Same approach for evaluation metrics
-            base_length = len(self.evaluation_metrics['eval_timesteps'])
+            # Save as CSV - only include metrics that have data and align lengths
+            if self.training_metrics['timesteps']:
+                # Find the length of the timesteps array (this should be the reference length)
+                base_length = len(self.training_metrics['timesteps'])
+                
+                # Create a clean dictionary with only metrics that have data and proper length
+                clean_training_metrics = {}
+                for key, values in self.training_metrics.items():
+                    if values and len(values) == base_length:
+                        clean_training_metrics[key] = values
+                    elif values and len(values) != base_length:
+                        logger.warning(f"Metric '{key}' has length {len(values)} but expected {base_length}. Skipping from CSV.")
+                
+                if clean_training_metrics:
+                    training_df = pd.DataFrame(clean_training_metrics)
+                    csv_path = self.session_dir / f"training_data_{self.timestamp}.csv"
+                    training_df.to_csv(csv_path, index=False)
+                    logger.info(f"Training CSV saved with {len(clean_training_metrics)} metrics")
             
-            clean_eval_metrics = {}
-            for key, values in self.evaluation_metrics.items():
-                if values and len(values) == base_length:
-                    clean_eval_metrics[key] = values
-                elif values and len(values) != base_length:
-                    logger.warning(f"Eval metric '{key}' has length {len(values)} but expected {base_length}. Skipping from CSV.")
+            if self.evaluation_metrics['eval_timesteps']:
+                # Same approach for evaluation metrics
+                base_length = len(self.evaluation_metrics['eval_timesteps'])
+                
+                clean_eval_metrics = {}
+                for key, values in self.evaluation_metrics.items():
+                    if values and len(values) == base_length:
+                        clean_eval_metrics[key] = values
+                    elif values and len(values) != base_length:
+                        logger.warning(f"Eval metric '{key}' has length {len(values)} but expected {base_length}. Skipping from CSV.")
+                
+                if clean_eval_metrics:
+                    eval_df = pd.DataFrame(clean_eval_metrics)
+                    csv_path = self.session_dir / f"evaluation_data_{self.timestamp}.csv"
+                    eval_df.to_csv(csv_path, index=False)
+                    logger.info(f"Evaluation CSV saved with {len(clean_eval_metrics)} metrics")
             
-            if clean_eval_metrics:
-                eval_df = pd.DataFrame(clean_eval_metrics)
-                csv_path = self.session_dir / f"evaluation_data_{self.timestamp}.csv"
-                eval_df.to_csv(csv_path, index=False)
-                logger.info(f"Evaluation CSV saved with {len(clean_eval_metrics)} metrics")
-        
-        logger.info(f"Metrics data saved to: {self.session_dir}")
+            logger.info(f"Metrics data saved to: {self.session_dir}")
+            
+        except Exception as e:
+            logger.error(f"Error saving metrics data: {e}")
 
 class VisualizationCallback:
     """
@@ -706,9 +744,10 @@ def create_training_config() -> Dict[str, Any]:
             'max_steps': 1000,
             'reward_config': {
                 'distance_progress': 1.0,      # Primary reward: 1 point per unit distance
-                'crash_penalty': -20_000.0,      # Strong crash penalty (equivalent to losing 1000 distance)
+                'crash_penalty': -5_000.0,      # Strong crash penalty (equivalent to losing 1000 distance)
                 'time_penalty': -15.0,         # Very small time penalty to encourage efficiency
-                # Removed: speed_bonus, proximity_penalty (let imitation learning handle these)
+                'speed_bonus': 0.1,            # Small bonus for maintaining speed
+                'proximity_penalty': -5,     # Small penalty for being too close to walls
             }
         },
         
@@ -1214,6 +1253,10 @@ def main():
             print("TRAINING VISUALIZATION SUMMARY")
             print("=" * 60)
             print(f"📊 Training curves: {viz_dir / 'training_curves'}")
+            print(f"📈 Evaluation metrics: {viz_dir / 'evaluation_metrics'}")
+            print(f"📋 Performance summary: {viz_dir / 'performance_summary'}")
+            print(f"💾 Raw data files: {viz_dir}")
+            print("=" * 60)
             print(f"📈 Evaluation metrics: {viz_dir / 'evaluation_metrics'}")
             print(f"📋 Performance summary: {viz_dir / 'performance_summary'}")
             print(f"💾 Raw data files: {viz_dir}")

@@ -123,6 +123,24 @@ class RaceCarEnv(gym.Env):
             speed = np.linalg.norm([current_dto['velocity']['x'], current_dto['velocity']['y']])
             reward += speed * self.reward_weights['speed_bonus']
         
+        # Optional proximity penalty (only if configured)
+        if 'proximity_penalty' in self.reward_weights and self.reward_weights['proximity_penalty'] != 0:
+            # Get the minimum distance to walls from available sensors
+            sensor_distances = []
+            for key, value in current_dto.get('sensors', {}).items():
+                if value is not None and value > 0:  # Valid sensor reading
+                    sensor_distances.append(value)
+            
+            if sensor_distances:
+                min_distance = min(sensor_distances)
+                # Apply penalty inversely proportional to distance (closer = more penalty)
+                # Use a threshold to avoid penalties when far from walls
+                proximity_threshold = 200.0  # Adjust based on your track scale
+                if min_distance < proximity_threshold:
+                    # Penalty increases as distance decreases
+                    proximity_factor = (proximity_threshold - min_distance) / proximity_threshold
+                    reward += proximity_factor * self.reward_weights['proximity_penalty']
+        
         return reward
         
     def render(self, mode='human'):
