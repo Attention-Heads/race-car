@@ -1,46 +1,29 @@
-from typing import List
+# src/game/agent.py
 
-last_action = ["NOTHING"]  # Can be handled better with stateful agent class
+import numpy as np
+from stable_baselines3 import PPO
+
+# Load PPO model once
+model = PPO.load("ppo_racecar")
+
+ACTION_LIST = ["NOTHING", "ACCELERATE",
+               "DECELERATE", "STEER_LEFT", "STEER_RIGHT"]
 
 
-def get_action_from_rule_based_agent(sensor_data: dict) -> List[str]:
-    def sanitize(value):
-        return value if value is not None else 1000
+def get_action_from_agent(sensor_data):
+    """
+    Receives dict of 16 named sensors, returns action list.
+    """
+    sensor_order = [
+        "front", "right_front", "right_side", "right_back",
+        "back", "left_back", "left_side", "left_front",
+        "left_side_front", "front_left_front", "front_right_front", "right_side_front",
+        "right_side_back", "back_right_back", "back_left_back", "left_side_back"
+    ]
+    obs = np.array([
+        min(sensor_data.get(name, 0) or 0, 1000) / 1000.0
+        for name in sensor_order
+    ], dtype=np.float32)
 
-    # Sensor readings
-    front = sanitize(sensor_data.get("front"))
-    front_left = sanitize(sensor_data.get("front_left_front"))
-    front_right = sanitize(sensor_data.get("front_right_front"))
-    left = sanitize(sensor_data.get("left_side"))
-    right = sanitize(sensor_data.get("right_side"))
-    back = sanitize(sensor_data.get("back"))
-
-    actions = []
-
-    # --- Obstacle Avoidance ---
-    if front < 150:
-        if front_left > front_right:
-            actions.append("STEER_LEFT")
-        else:
-            actions.append("STEER_RIGHT")
-        actions.append("DECELERATE")
-    elif front < 300:
-        actions.append("DECELERATE")
-
-    # --- Wall Avoidance ---
-    if left < 50:
-        actions.append("STEER_RIGHT")
-    elif right < 50:
-        actions.append("STEER_LEFT")
-
-    # --- Acceleration Logic ---
-    if front > 400 and front_left > 300 and front_right > 300:
-        actions.append("ACCELERATE")
-
-    # --- Maintain Forward Progress ---
-    if not actions:
-        actions.append("NOTHING")
-
-    global last_action
-    last_action = actions
-    return actions
+    action_idx, _ = model.predict(obs, deterministic=True)
+    return [ACTION_LIST[action_idx]]

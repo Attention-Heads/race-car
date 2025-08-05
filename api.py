@@ -4,7 +4,7 @@ import datetime
 from fastapi import Body, FastAPI
 from dtos import RaceCarPredictRequestDto, RaceCarPredictResponseDto
 from example import return_action
-from src.game.agent import get_action_from_rule_based_agent
+from src.game.agent import get_action_from_agent
 
 HOST = "0.0.0.0"
 PORT = 9052
@@ -17,7 +17,7 @@ start_time = time.time()
 @app.post('/predict', response_model=RaceCarPredictResponseDto)
 def predict(request: RaceCarPredictRequestDto = Body(...)):
     # action = return_action(request.dict())
-    actions = get_action_from_rule_based_agent(request.dict())
+    actions = get_action_from_agent(request.dict())
     return RaceCarPredictResponseDto(
         # action_type=action['action_type'],
         actions=actions

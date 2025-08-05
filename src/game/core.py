@@ -8,7 +8,7 @@ from ..elements.road import Road
 from ..elements.sensor import Sensor
 from ..mathematics.vector import Vector
 import json
-from .agent import get_action_from_rule_based_agent
+from .agent import get_action_from_agent
 
 # Define constants
 SCREEN_WIDTH = 1600
@@ -277,7 +277,7 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
                 sensor.name: sensor.reading
                 for sensor in STATE.sensors
             }
-            action_list = get_action_from_rule_based_agent(
+            action_list = get_action_from_agent(
                 sensor_data)
 
             for act in action_list:
