@@ -21,7 +21,7 @@ def return_action(state):
 
 if __name__ == '__main__':
     # For watching your trained model play (single game)
-    seed_value = "565318"  # Fixed seed for consistent testing (string required)
+    seed_value = "5665318"  # Fixed seed for consistent testing (string required)
     pygame.init()
     
     # Initialize game with API URL pointing to your model server

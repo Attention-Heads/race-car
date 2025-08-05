@@ -23,7 +23,7 @@ try:
         print("Behavioral cloning model loaded successfully.")
     else:
         # Load PPO model (default)
-        AGENT = PPO.load("./models/ppo_initialized_with_bc.zip")
+        AGENT = PPO.load("./models/final_model.zip")
         print("PPO agent loaded successfully.")
     
     PREPROCESSOR = StatePreprocessor(use_velocity_scaler=True)
@@ -86,7 +86,7 @@ def predict(request: RaceCarPredictRequestDto = Body(...)):
         action_mapping = {0: 'NOTHING', 1: 'ACCELERATE', 2: 'DECELERATE', 3: 'STEER_LEFT', 4: 'STEER_RIGHT'}
         action_name = action_mapping.get(int(action_num), 'NOTHING')
         
-        return RaceCarPredictResponseDto(actions=[action_name]*2)
+        return RaceCarPredictResponseDto(actions=[action_name])
         
     except Exception as e:
         logger.error(f"Error in prediction: {e}")

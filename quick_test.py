@@ -20,7 +20,7 @@ def load_model_and_scaler(model_type="ppo"):
             agent = load_bc_model("./models/best_bc_model.pth")
             print(f"✓ Behavioral Cloning model loaded successfully")
         else:
-            agent = PPO.load("./models/ppo_initialized_with_bc.zip")
+            agent = PPO.load("./models/best_model/best_model.zip")
             print(f"✓ PPO model loaded successfully")
     except Exception as e:
         print(f"✗ Failed to load {model_type.upper()} model: {e}")
@@ -53,6 +53,7 @@ def predict_action(agent, state_array):
     action_mapping = {0: 'NOTHING', 1: 'ACCELERATE', 2: 'DECELERATE', 3: 'STEER_LEFT', 4: 'STEER_RIGHT'}
     
     try:
+        print(f"Predicting with state: {state_array}")
         action_num, _ = agent.predict(state_array, deterministic=True)
         return action_mapping.get(int(action_num), 'NOTHING')
     except Exception as e:
@@ -70,23 +71,19 @@ def test_sample_accuracy(sample_size=1000, model_type="ppo"):
     
     # Load data
     try:
-        df = pd.read_csv('expert_training_data.csv')
+        df = pd.read_csv('processed_balanced_training_data.csv')
         print(f"✓ Loaded dataset with {len(df)} rows")
     except Exception as e:
         print(f"✗ Failed to load data: {e}")
         return
     
-    # Filter out NOTHING actions
-    df_filtered = df[df['action'] != 'NOTHING']
-    print(f"✓ Filtered out NOTHING actions: {len(df_filtered)} rows remaining (removed {len(df) - len(df_filtered)} NOTHING rows)")
-    
     # Sample data
-    if sample_size < len(df_filtered):
-        df_sample = df_filtered.sample(n=sample_size, random_state=42)
+    if sample_size < len(df):
+        df_sample = df.sample(n=sample_size, random_state=42)
         print(f"Testing on random sample of {sample_size} rows")
     else:
-        df_sample = df_filtered
-        print(f"Testing on all {len(df_filtered)} rows")
+        df_sample = df
+        print(f"Testing on all {len(df)} rows")
     
     # Run predictions
     print("\nRunning predictions...")

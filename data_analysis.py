@@ -60,14 +60,19 @@ def process_and_combine_game_runs(
                 metadata = json.load(f)
             
             is_crashed = metadata.get('crashed', False)
-
-            # 1. If the game crashed, remove the last 200 actions
-            if is_crashed and len(game_df) > 200:
-                game_df = game_df.iloc[:-200]
             
-            # 2. Remove all rows where the action is 'NOTHING'
-            if 'action' in game_df.columns:
-                game_df = game_df[game_df['action'] != 'NOTHING']
+            # if the game is shorter than 5000 distance, skip it
+            if 'distance' in metadata and metadata['distance'] < 5000:
+                print(f"Skipping game run '{game_run_id}' due to insufficient distance: {metadata['distance']}")
+                continue
+
+            # # 1. If the game crashed, remove the last 200 actions
+            # if is_crashed and len(game_df) > 200:
+            #     game_df = game_df.iloc[:-200]
+            
+            # # 2. Remove all rows where the action is 'NOTHING'
+            # if 'action' in game_df.columns:
+            #     game_df = game_df[game_df['action'] != 'NOTHING']
 
             if not game_df.empty:
                 processed_data_frames.append(game_df)

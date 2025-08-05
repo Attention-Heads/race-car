@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
-from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold
+from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold, BaseCallback
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 from stable_baselines3.common.policies import ActorCriticPolicy
@@ -74,7 +74,11 @@ class TrainingVisualizer:
             'learning_rates': [],
             'policy_losses': [],
             'value_losses': [],
-            'explained_variances': []
+            'explained_variances': [],
+            'entropy_coefs': [],        # Track entropy coefficient changes
+            'clip_ranges': [],          # Track clip range changes
+            'phase_transitions': [],    # Track phase transitions
+            'current_phases': []        # Track current phase at each timestep
         }
         
         self.evaluation_metrics = {
@@ -248,6 +252,105 @@ class TrainingVisualizer:
         plt.close()
         logger.info(f"Evaluation plots saved to: {save_path}")
     
+    def create_phased_training_plots(self):
+        """Create visualizations specific to phased training."""
+        if not self.training_metrics['timesteps'] or not self.training_metrics['phase_transitions']:
+            logger.warning("No phased training metrics to plot")
+            return
+            
+        fig, axes = plt.subplots(2, 2, figsize=(15, 10))
+        fig.suptitle(f'Phased Training Analysis - {self.timestamp}', fontsize=16, fontweight='bold')
+        
+        # Hyperparameter evolution over time
+        if self.training_metrics['learning_rates'] and self.training_metrics['entropy_coefs']:
+            ax1 = axes[0, 0]
+            ax2 = ax1.twinx()
+            
+            line1 = ax1.plot(self.training_metrics['timesteps'], self.training_metrics['learning_rates'], 
+                            color='blue', linewidth=2, label='Learning Rate')
+            line2 = ax2.plot(self.training_metrics['timesteps'], self.training_metrics['entropy_coefs'], 
+                            color='red', linewidth=2, label='Entropy Coef')
+            
+            ax1.set_xlabel('Training Timesteps')
+            ax1.set_ylabel('Learning Rate', color='blue')
+            ax2.set_ylabel('Entropy Coefficient', color='red')
+            ax1.set_title('Hyperparameter Evolution')
+            ax1.grid(True, alpha=0.3)
+            
+            # Add phase transition markers
+            for transition_step in self.training_metrics['phase_transitions']:
+                ax1.axvline(x=transition_step, color='gray', linestyle='--', alpha=0.7)
+            
+            # Combine legends
+            lines = line1 + line2
+            labels = [l.get_label() for l in lines]
+            ax1.legend(lines, labels, loc='upper left')
+        
+        # Clip range evolution
+        if self.training_metrics['clip_ranges']:
+            axes[0, 1].plot(self.training_metrics['timesteps'], self.training_metrics['clip_ranges'], 
+                           color='green', linewidth=2, marker='o', markersize=3)
+            axes[0, 1].set_title('Clip Range Evolution')
+            axes[0, 1].set_xlabel('Training Timesteps')
+            axes[0, 1].set_ylabel('Clip Range')
+            axes[0, 1].grid(True, alpha=0.3)
+            
+            # Add phase transition markers
+            for transition_step in self.training_metrics['phase_transitions']:
+                axes[0, 1].axvline(x=transition_step, color='gray', linestyle='--', alpha=0.7)
+        
+        # Performance by phase (if we have episode rewards)
+        if self.training_metrics['episode_rewards'] and self.training_metrics['current_phases']:
+            phase_rewards = {}
+            for i, (timestep, reward, phase) in enumerate(zip(
+                self.training_metrics['timesteps'], 
+                self.training_metrics['episode_rewards'],
+                self.training_metrics['current_phases']
+            )):
+                if phase not in phase_rewards:
+                    phase_rewards[phase] = []
+                phase_rewards[phase].append(reward)
+            
+            phases = list(phase_rewards.keys())
+            mean_rewards = [np.mean(phase_rewards[phase]) for phase in phases]
+            std_rewards = [np.std(phase_rewards[phase]) for phase in phases]
+            
+            axes[1, 0].bar(phases, mean_rewards, yerr=std_rewards, capsize=5, 
+                          color=['lightcoral', 'lightblue', 'lightgreen'][:len(phases)])
+            axes[1, 0].set_title('Average Reward by Phase')
+            axes[1, 0].set_xlabel('Training Phase')
+            axes[1, 0].set_ylabel('Average Episode Reward')
+            axes[1, 0].grid(True, alpha=0.3)
+        
+        # Learning progression visualization
+        if self.training_metrics['episode_rewards']:
+            # Smooth the rewards for better visualization
+            window_size = min(50, len(self.training_metrics['episode_rewards']) // 10)
+            if window_size > 1:
+                rewards_df = pd.Series(self.training_metrics['episode_rewards'])
+                smoothed_rewards = rewards_df.rolling(window=window_size, center=True).mean()
+                
+                axes[1, 1].plot(self.training_metrics['timesteps'], smoothed_rewards, 
+                               color='purple', linewidth=2, label=f'Smoothed Rewards (window={window_size})')
+                axes[1, 1].set_title('Learning Progression with Phase Transitions')
+                axes[1, 1].set_xlabel('Training Timesteps')
+                axes[1, 1].set_ylabel('Smoothed Episode Reward')
+                axes[1, 1].grid(True, alpha=0.3)
+                axes[1, 1].legend()
+                
+                # Add phase transition markers with labels
+                colors = ['red', 'orange', 'green', 'blue', 'purple']
+                for i, transition_step in enumerate(self.training_metrics['phase_transitions']):
+                    color = colors[i % len(colors)]
+                    axes[1, 1].axvline(x=transition_step, color=color, linestyle='--', 
+                                      alpha=0.8, linewidth=2, label=f'Phase {i+2} Start')
+        
+        plt.tight_layout()
+        save_path = self.dirs['model_analysis'] / f"phased_training_analysis_{self.timestamp}.png"
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
+        plt.close()
+        logger.info(f"Phased training analysis saved to: {save_path}")
+    
     def create_performance_summary(self, final_stats: Dict[str, Any]):
         """Create a comprehensive performance summary visualization."""
         fig, axes = plt.subplots(2, 3, figsize=(18, 12))
@@ -353,16 +456,41 @@ class TrainingVisualizer:
         with open(json_path, 'w') as f:
             json.dump(all_metrics, f, indent=2)
         
-        # Save as CSV
+        # Save as CSV - only include metrics that have data and align lengths
         if self.training_metrics['timesteps']:
-            training_df = pd.DataFrame(self.training_metrics)
-            csv_path = self.session_dir / f"training_data_{self.timestamp}.csv"
-            training_df.to_csv(csv_path, index=False)
+            # Find the length of the timesteps array (this should be the reference length)
+            base_length = len(self.training_metrics['timesteps'])
+            
+            # Create a clean dictionary with only metrics that have data and proper length
+            clean_training_metrics = {}
+            for key, values in self.training_metrics.items():
+                if values and len(values) == base_length:
+                    clean_training_metrics[key] = values
+                elif values and len(values) != base_length:
+                    logger.warning(f"Metric '{key}' has length {len(values)} but expected {base_length}. Skipping from CSV.")
+            
+            if clean_training_metrics:
+                training_df = pd.DataFrame(clean_training_metrics)
+                csv_path = self.session_dir / f"training_data_{self.timestamp}.csv"
+                training_df.to_csv(csv_path, index=False)
+                logger.info(f"Training CSV saved with {len(clean_training_metrics)} metrics")
         
         if self.evaluation_metrics['eval_timesteps']:
-            eval_df = pd.DataFrame(self.evaluation_metrics)
-            csv_path = self.session_dir / f"evaluation_data_{self.timestamp}.csv"
-            eval_df.to_csv(csv_path, index=False)
+            # Same approach for evaluation metrics
+            base_length = len(self.evaluation_metrics['eval_timesteps'])
+            
+            clean_eval_metrics = {}
+            for key, values in self.evaluation_metrics.items():
+                if values and len(values) == base_length:
+                    clean_eval_metrics[key] = values
+                elif values and len(values) != base_length:
+                    logger.warning(f"Eval metric '{key}' has length {len(values)} but expected {base_length}. Skipping from CSV.")
+            
+            if clean_eval_metrics:
+                eval_df = pd.DataFrame(clean_eval_metrics)
+                csv_path = self.session_dir / f"evaluation_data_{self.timestamp}.csv"
+                eval_df.to_csv(csv_path, index=False)
+                logger.info(f"Evaluation CSV saved with {len(clean_eval_metrics)} metrics")
         
         logger.info(f"Metrics data saved to: {self.session_dir}")
 
@@ -393,6 +521,179 @@ class VisualizationCallback:
         
         return True
 
+class PhasedTrainingScheduler:
+    """
+    Scheduler for phased training that dynamically adjusts hyperparameters during training.
+    """
+    
+    def __init__(self, phased_config: Dict[str, Any], visualizer: TrainingVisualizer = None):
+        """
+        Initialize the phased training scheduler.
+        
+        Args:
+            phased_config: Configuration for phased training
+            visualizer: Optional visualizer for logging phase changes
+        """
+        self.phased_config = phased_config
+        self.visualizer = visualizer
+        self.phases = phased_config.get('phases', [])
+        self.current_phase_idx = 0
+        self.phase_start_timestep = 0
+        self.total_timesteps_processed = 0
+        
+        # Calculate cumulative timesteps for each phase
+        self.phase_timesteps = []
+        cumulative = 0
+        for phase in self.phases:
+            cumulative += phase['duration_timesteps']
+            self.phase_timesteps.append(cumulative)
+        
+        logger.info(f"Initialized phased training with {len(self.phases)} phases")
+        for i, phase in enumerate(self.phases):
+            logger.info(f"Phase {i+1}: {phase['phase_name']} - {phase['duration_timesteps']:,} timesteps")
+    
+    def get_current_phase(self, timestep: int) -> Dict[str, Any]:
+        """Get the current training phase based on timestep."""
+        for i, phase_end in enumerate(self.phase_timesteps):
+            if timestep <= phase_end:
+                return self.phases[i], i
+        
+        # If we're past all phases, return the last phase
+        return self.phases[-1], len(self.phases) - 1
+    
+    def should_update_hyperparameters(self, timestep: int) -> bool:
+        """Check if we should update hyperparameters for a new phase."""
+        current_phase, phase_idx = self.get_current_phase(timestep)
+        
+        if phase_idx != self.current_phase_idx:
+            self.current_phase_idx = phase_idx
+            self.phase_start_timestep = timestep
+            return True
+        return False
+    
+    def update_model_hyperparameters(self, model, timestep: int) -> bool:
+        """
+        Update model hyperparameters if we've entered a new phase.
+        
+        Args:
+            model: PPO model to update
+            timestep: Current training timestep
+            
+        Returns:
+            True if hyperparameters were updated, False otherwise
+        """
+        if not self.should_update_hyperparameters(timestep):
+            return False
+        
+        current_phase, phase_idx = self.get_current_phase(timestep)
+        
+        # Update hyperparameters
+        old_lr = model.learning_rate
+        old_ent = model.ent_coef
+        old_clip = model.clip_range(1.0) if callable(model.clip_range) else model.clip_range
+        old_epochs = model.n_epochs
+        
+        # Update learning rate
+        if 'learning_rate' in current_phase:
+            model.learning_rate = current_phase['learning_rate']
+        
+        # Update entropy coefficient
+        if 'ent_coef' in current_phase:
+            model.ent_coef = current_phase['ent_coef']
+        
+        # Update clip range
+        if 'clip_range' in current_phase:
+            clip_range_value = current_phase['clip_range']
+            model.clip_range = lambda _: clip_range_value
+        
+        # Update number of epochs (this affects the next training update)
+        if 'n_epochs' in current_phase:
+            model.n_epochs = current_phase['n_epochs']
+        
+        # Log the phase transition
+        logger.info("\n" + "="*60)
+        logger.info(f"🔄 PHASE TRANSITION AT TIMESTEP {timestep:,}")
+        logger.info(f"Entering Phase {phase_idx + 1}: {current_phase['phase_name']}")
+        logger.info(f"Description: {current_phase.get('description', 'No description')}")
+        logger.info("Hyperparameter changes:")
+        logger.info(f"  Learning Rate: {old_lr:.6f} → {model.learning_rate:.6f}")
+        logger.info(f"  Entropy Coef:  {old_ent:.6f} → {model.ent_coef:.6f}")
+        logger.info(f"  Clip Range:    {old_clip:.6f} → {model.clip_range(1.0):.6f}")
+        logger.info(f"  N Epochs:      {old_epochs} → {model.n_epochs}")
+        logger.info("="*60)
+        
+        # Log to visualizer if available
+        if self.visualizer:
+            phase_metrics = {
+                'phase_transition': phase_idx + 1,
+                'learning_rates': float(model.learning_rate),
+                'entropy_coef': float(model.ent_coef),
+                'clip_range': float(model.clip_range(1.0) if callable(model.clip_range) else model.clip_range),
+                'n_epochs': int(model.n_epochs)
+            }
+            self.visualizer.log_training_step(timestep, phase_metrics)
+        
+        return True
+    
+    def get_phase_progress(self, timestep: int) -> Tuple[str, float, int]:
+        """
+        Get current phase progress information.
+        
+        Returns:
+            Tuple of (phase_name, progress_percentage, remaining_timesteps)
+        """
+        current_phase, phase_idx = self.get_current_phase(timestep)
+        
+        # Calculate progress within current phase
+        phase_start = self.phase_timesteps[phase_idx - 1] if phase_idx > 0 else 0
+        phase_end = self.phase_timesteps[phase_idx]
+        phase_duration = phase_end - phase_start
+        
+        timesteps_in_phase = timestep - phase_start
+        progress_percentage = min(100.0, (timesteps_in_phase / phase_duration) * 100)
+        remaining_timesteps = max(0, phase_end - timestep)
+        
+        return current_phase['phase_name'], progress_percentage, remaining_timesteps
+
+class PhasedTrainingCallback(BaseCallback):
+    """
+    Callback to handle phased training during PPO learning.
+    """
+    
+    def __init__(self, scheduler: PhasedTrainingScheduler, update_freq: int = 1000, verbose: int = 0):
+        """
+        Initialize the callback.
+        
+        Args:
+            scheduler: Phased training scheduler
+            update_freq: Frequency to check for phase updates (in timesteps)
+            verbose: Verbosity level
+        """
+        super().__init__(verbose)
+        self.scheduler = scheduler
+        self.update_freq = update_freq
+        self.last_check_timestep = 0
+        self.last_log_timestep = 0
+        self.log_freq = 5000  # Log phase progress every 5000 timesteps
+    
+    def _on_step(self) -> bool:
+        """Called during training to handle phase transitions."""
+        timestep = self.num_timesteps
+        
+        # Check for phase transitions
+        if timestep - self.last_check_timestep >= self.update_freq:
+            self.scheduler.update_model_hyperparameters(self.model, timestep)
+            self.last_check_timestep = timestep
+        
+        # Log phase progress periodically
+        if timestep - self.last_log_timestep >= self.log_freq:
+            phase_name, progress, remaining = self.scheduler.get_phase_progress(timestep)
+            logger.info(f"📊 Phase Progress: {phase_name} - {progress:.1f}% complete "
+                       f"({remaining:,} timesteps remaining)")
+            self.last_log_timestep = timestep
+        
+        return True
+
 def create_training_config() -> Dict[str, Any]:
     """
     Create default training configuration.
@@ -413,7 +714,7 @@ def create_training_config() -> Dict[str, Any]:
         
         # PPO hyperparameters
         'ppo_config': {
-            'learning_rate': 3e-4,
+            'learning_rate': 1e-4,         # Start with lower learning rate for gentle exploration
             'n_steps': 2048,               # Steps to collect before update
             'batch_size': 64,              # Batch size for training
             'n_epochs': 10,                # Number of epochs per update
@@ -421,20 +722,57 @@ def create_training_config() -> Dict[str, Any]:
             'gae_lambda': 0.95,            # GAE parameter
             'clip_range': 0.2,             # PPO clip range
             'clip_range_vf': None,         # Value function clip range
-            'ent_coef': 0.01,              # Entropy coefficient
+            'ent_coef': 0.05,              # Start with higher entropy for gentle exploration
             'vf_coef': 0.5,                # Value function coefficient
             'max_grad_norm': 0.5,          # Gradient clipping
             'target_kl': None,             # Target KL divergence
             'device': 'cpu',               # Use CPU (adjust if you have CUDA)
         },
         
+        # Phased training configuration
+        'phased_training': {
+            'enable_phased_training': True,
+            'phases': [
+                # Phase 1: Gentle exploration around BC policy
+                {
+                    'phase_name': 'gentle_exploration',
+                    'duration_timesteps': 30_000,
+                    'learning_rate': 1e-4,
+                    'ent_coef': 0.05,           # High entropy for exploration
+                    'clip_range': 0.1,          # Conservative clipping
+                    'n_epochs': 5,              # Fewer epochs to avoid overfitting
+                    'description': 'Conservative exploration around BC policy'
+                },
+                # Phase 2: Moderate learning
+                {
+                    'phase_name': 'moderate_learning',
+                    'duration_timesteps': 40_000,
+                    'learning_rate': 2e-4,
+                    'ent_coef': 0.02,           # Medium entropy
+                    'clip_range': 0.15,         # Medium clipping
+                    'n_epochs': 8,              # More epochs for better learning
+                    'description': 'Balanced exploration and exploitation'
+                },
+                # Phase 3: Aggressive optimization
+                {
+                    'phase_name': 'aggressive_optimization',
+                    'duration_timesteps': 30_000,
+                    'learning_rate': 3e-4,
+                    'ent_coef': 0.01,           # Low entropy for exploitation
+                    'clip_range': 0.2,          # Standard clipping
+                    'n_epochs': 10,             # Full epochs for optimization
+                    'description': 'Focused optimization and exploitation'
+                }
+            ]
+        },
+        
         # Training configuration
         'training_config': {
             'total_timesteps': 100_000,    # Total training timesteps
-            'n_eval_episodes': 10,         # Episodes per evaluation
+            'n_eval_episodes': 16,         # Episodes per evaluation
             'eval_freq': 5000,             # Evaluation frequency
             'save_freq': 10000,            # Model save frequency
-            'n_envs': 4,                  # Number of parallel environments
+            'n_envs': 16,                  # Number of parallel environments
             'use_subprocess': False,       # Use subprocess for parallel envs
         },
         
@@ -501,7 +839,8 @@ def create_vectorized_env(config: Dict[str, Any]) -> DummyVecEnv:
     logger.info(f"Created vectorized environment with {n_envs} parallel environments")
     return vec_env
 
-def create_callbacks(config: Dict[str, Any], eval_env, visualizer: TrainingVisualizer = None):
+def create_callbacks(config: Dict[str, Any], eval_env, visualizer: TrainingVisualizer = None, 
+                    phased_scheduler: PhasedTrainingScheduler = None):
     """
     Create training callbacks.
     
@@ -509,6 +848,7 @@ def create_callbacks(config: Dict[str, Any], eval_env, visualizer: TrainingVisua
         config: Training configuration
         eval_env: Evaluation environment
         visualizer: Training visualizer instance
+        phased_scheduler: Optional phased training scheduler
         
     Returns:
         List of callbacks
@@ -517,6 +857,12 @@ def create_callbacks(config: Dict[str, Any], eval_env, visualizer: TrainingVisua
     paths = config['paths']
     
     callbacks = []
+    
+    # Add phased training callback if enabled
+    if phased_scheduler:
+        phased_callback = PhasedTrainingCallback(phased_scheduler, update_freq=1000)
+        callbacks.append(phased_callback)
+        logger.info("Phased training callback added")
     
     # Evaluation callback with custom logging for visualization
     class VisualizationEvalCallback(EvalCallback):
@@ -582,6 +928,18 @@ def train_ppo_agent(config: Dict[str, Any], pretrained_model_path: str = None):
         visualizer = TrainingVisualizer(base_dir=viz_dir)
         logger.info("Training visualizations enabled")
     
+    # Initialize phased training scheduler if enabled
+    phased_scheduler = None
+    phased_config = config.get('phased_training', {})
+    if phased_config.get('enable_phased_training', False):
+        phased_scheduler = PhasedTrainingScheduler(phased_config, visualizer)
+        logger.info("Phased training enabled")
+        
+        # Update total timesteps based on phases
+        total_phase_timesteps = sum(phase['duration_timesteps'] for phase in phased_config['phases'])
+        config['training_config']['total_timesteps'] = total_phase_timesteps
+        logger.info(f"Total training timesteps adjusted to {total_phase_timesteps:,} based on phases")
+    
     # Record training start time
     training_start_time = datetime.now()
     
@@ -594,8 +952,8 @@ def train_ppo_agent(config: Dict[str, Any], pretrained_model_path: str = None):
     train_env = create_vectorized_env(config)
     eval_env = DummyVecEnv([make_env(config['env_config'])])
     
-    # Create callbacks with visualizer
-    callbacks = create_callbacks(config, eval_env, visualizer)
+    # Create callbacks with visualizer and phased scheduler
+    callbacks = create_callbacks(config, eval_env, visualizer, phased_scheduler)
     
     # Initialize or load PPO model
     if pretrained_model_path and os.path.exists(pretrained_model_path):
@@ -605,10 +963,31 @@ def train_ppo_agent(config: Dict[str, Any], pretrained_model_path: str = None):
             env=train_env,
             tensorboard_log=paths['tensorboard_log']
         )
-        # Update hyperparameters if needed
-        model.learning_rate = config['ppo_config']['learning_rate']
+        # Update hyperparameters for initial phase if phased training is enabled
+        if phased_scheduler:
+            initial_phase = phased_scheduler.phases[0]
+            model.learning_rate = initial_phase.get('learning_rate', config['ppo_config']['learning_rate'])
+            model.ent_coef = initial_phase.get('ent_coef', config['ppo_config']['ent_coef'])
+            clip_range_value = initial_phase.get('clip_range', config['ppo_config']['clip_range'])
+            model.clip_range = lambda _: clip_range_value
+            model.n_epochs = initial_phase.get('n_epochs', config['ppo_config']['n_epochs'])
+            logger.info(f"Updated hyperparameters for initial phase: {initial_phase['phase_name']}")
+        else:
+            model.learning_rate = config['ppo_config']['learning_rate']
     else:
         logger.info("Creating new PPO model")
+        
+        # Adjust initial hyperparameters for phased training
+        ppo_config = config['ppo_config'].copy()
+        if phased_scheduler:
+            initial_phase = phased_scheduler.phases[0]
+            ppo_config.update({
+                'learning_rate': initial_phase.get('learning_rate', ppo_config['learning_rate']),
+                'ent_coef': initial_phase.get('ent_coef', ppo_config['ent_coef']),
+                'clip_range': initial_phase.get('clip_range', ppo_config['clip_range']),
+                'n_epochs': initial_phase.get('n_epochs', ppo_config['n_epochs'])
+            })
+            logger.info(f"Initializing with Phase 1 hyperparameters: {initial_phase['phase_name']}")
         
         # Custom policy class that uses our feature extractor
         class CustomActorCriticPolicy(ActorCriticPolicy):
@@ -622,12 +1001,38 @@ def train_ppo_agent(config: Dict[str, Any], pretrained_model_path: str = None):
             train_env,
             verbose=1,
             tensorboard_log=paths['tensorboard_log'],
-            **config['ppo_config']
+            **ppo_config
         )
     
     # Train the model
     total_timesteps = config['training_config']['total_timesteps']
-    logger.info(f"Starting training for {total_timesteps} timesteps")
+    
+    # Print training configuration summary
+    print("\n" + "="*70)
+    print("🚗 PPO RACE CAR TRAINING CONFIGURATION")
+    print("="*70)
+    print(f"Total Timesteps: {total_timesteps:,}")
+    print(f"Environment Config:")
+    print(f"  - Max Steps: {config['env_config']['max_steps']}")
+    print(f"  - Parallel Envs: {config['training_config']['n_envs']}")
+    
+    if phased_scheduler:
+        print(f"\n🔄 PHASED TRAINING ENABLED ({len(phased_scheduler.phases)} phases):")
+        for i, phase in enumerate(phased_scheduler.phases):
+            print(f"  Phase {i+1}: {phase['phase_name']}")
+            print(f"    Duration: {phase['duration_timesteps']:,} timesteps")
+            print(f"    Learning Rate: {phase.get('learning_rate', 'N/A')}")
+            print(f"    Entropy Coef: {phase.get('ent_coef', 'N/A')}")
+            print(f"    Clip Range: {phase.get('clip_range', 'N/A')}")
+            print(f"    Description: {phase.get('description', 'No description')}")
+    else:
+        print(f"\n📊 STANDARD PPO TRAINING:")
+        print(f"  Learning Rate: {model.learning_rate}")
+        print(f"  Entropy Coef: {model.ent_coef}")
+        print(f"  Clip Range: {model.clip_range(1.0) if callable(model.clip_range) else model.clip_range}")
+    
+    print("="*70)
+    logger.info(f"Starting training for {total_timesteps:,} timesteps")
     
     try:
         model.learn(
@@ -663,7 +1068,12 @@ def train_ppo_agent(config: Dict[str, Any], pretrained_model_path: str = None):
         
         # Generate all visualization plots
         visualizer.create_training_curves()
-        visualizer.create_evaluation_plots() 
+        visualizer.create_evaluation_plots()
+        
+        # Create phased training analysis if phased training was used
+        if phased_scheduler and visualizer.training_metrics['phase_transitions']:
+            visualizer.create_phased_training_plots()
+        
         visualizer.create_performance_summary(final_stats)
         
         # Save metrics data if enabled
@@ -751,6 +1161,8 @@ def main():
                        help='Override total training timesteps')
     parser.add_argument('--disable-plots', action='store_true',
                        help='Disable visualization plot generation')
+    parser.add_argument('--disable-phased-training', action='store_true',
+                       help='Disable phased training and use standard PPO')
     parser.add_argument('--viz-dir', type=str, default='./visualizations',
                        help='Directory for saving visualizations')
     
@@ -766,14 +1178,18 @@ def main():
     if args.disable_plots:
         config['visualization_config']['enable_plots'] = False
     
+    if args.disable_phased_training:
+        config['phased_training']['enable_phased_training'] = False
+    
     if args.viz_dir:
         config['paths']['visualization_dir'] = args.viz_dir
     
     print("=" * 60)
-    print("PPO Training with Advanced Visualization")
+    print("PPO Training with Advanced Visualization & Phased Training")
     print("=" * 60)
     print(f"Mode: {args.mode}")
     print(f"Total timesteps: {config['training_config']['total_timesteps']:,}")
+    print(f"Phased training: {'Enabled' if config['phased_training']['enable_phased_training'] else 'Disabled'}")
     print(f"Visualization enabled: {config['visualization_config']['enable_plots']}")
     if config['visualization_config']['enable_plots']:
         print(f"Visualization directory: {config['paths']['visualization_dir']}")

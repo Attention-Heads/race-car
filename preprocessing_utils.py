@@ -114,6 +114,11 @@ class StatePreprocessor:
                     value = 0.0
             
             flat_state.append(float(value))
+            
+        # print("=" * 50)
+        # print(f"Preprocessing row: {row}")
+        # print(f"Preprocessing row: {flat_state}")
+        # print("=" * 50)
         
         return self._apply_preprocessing(np.array(flat_state, dtype=np.float32))
     
