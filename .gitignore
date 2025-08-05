@@ -53,7 +53,6 @@ ipython_config.py
 .env.production.local
 
 # Machine Learning / AI
-*.pkl
 *.joblib
 *.h5
 *.hdf5
