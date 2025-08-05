@@ -109,3 +109,6 @@ logs/
 config.ini
 secrets.json
 .secrets
+
+demo_visualizations/
+visualizations/
