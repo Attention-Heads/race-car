@@ -126,8 +126,24 @@ class RaceCarEnv(gym.Env):
         return reward
         
     def render(self, mode='human'):
-        # The game simulation handles its own rendering if verbose=True
-        pass
+        """
+        Render the environment for evaluation or visualization.
+        mode: 'human' displays the game window (if supported),
+              'rgb_array' returns a frame as a numpy array (if supported).
+        """
+        if mode == 'human':
+            # If the simulation supports explicit rendering, call it
+            if hasattr(self.game, 'render'):
+                self.game.render()
+            # Otherwise, rely on verbose=True to show the window
+        elif mode == 'rgb_array':
+            # If the simulation can return a frame, do so
+            if hasattr(self.game, 'get_frame'):
+                return self.game.get_frame()
+            else:
+                raise NotImplementedError("rgb_array mode not supported by GameSimulation.")
+        else:
+            raise NotImplementedError(f"Render mode '{mode}' not supported.")
 
     def close(self):
         self.game.close()

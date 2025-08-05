@@ -37,6 +37,31 @@ class StateWrapper:
             self._state[name] = value
 
 class GameSimulation:
+    def render(self):
+        """
+        Render the current game state to the screen (for 'human' mode in RaceCarEnv).
+        If verbose is False, does nothing.
+        """
+        if self.verbose:
+            self._render()
+
+    def get_frame(self):
+        """
+        Return the current frame as a numpy array (for 'rgb_array' mode in RaceCarEnv).
+        Returns shape (height, width, 3) as expected by Gymnasium.
+        """
+        if not self.verbose:
+            # If not in verbose mode, we still need a surface to grab the frame
+            # Create a temporary surface if needed
+            pygame.init()
+            if not hasattr(self, 'screen'):
+                self.screen = pygame.Surface((SCREEN_WIDTH, SCREEN_HEIGHT))
+            self._render()
+        import numpy as np
+        arr = pygame.surfarray.array3d(self.screen)
+        # Pygame's array3d returns (width, height, 3), Gym expects (height, width, 3)
+        arr = np.transpose(arr, (1, 0, 2))
+        return arr
     """
     A class that encapsulates the Pygame simulation logic, making it controllable
     by an external script like an RL environment.
@@ -162,6 +187,7 @@ class GameSimulation:
 
     def _render(self):
         """Draws the current game state to the screen."""
+        pygame.event.pump()  # Process events to avoid freezing
         self.clock.tick(60) # Regulate speed for visualization
         self.screen.fill((0, 0, 0))
         self.screen.blit(self.state['road'].surface, (0, 0))
@@ -196,20 +222,28 @@ class GameSimulation:
         self.state['cars'] = cars_to_keep
 
     def _place_new_cars(self):
-        if len(self.state['cars']) > LANE_COUNT + 1: return
+        if len(self.state['cars']) > LANE_COUNT: return
         if not self.state['car_bucket']: return
         if py_random.random() > 0.1: return # Only place cars occasionally
 
-        ego_x = self.state['ego'].x
-        open_lanes = [lane for lane in self.state['road'].lanes if not any(c.lane == lane for c in self.state['cars'])]
+        speed_coeff_modifier = 5
+        x_offset_behind = -0.5
+        x_offset_in_front = 1.5
+        
+        open_lanes = [lane for lane in self.state['road'].lanes if not any(c.lane == lane for c in self.state['cars'] if c != self.state['ego'])]
         if not open_lanes: return
         
         lane = random_choice(open_lanes)
+        x_offset = random_choice([x_offset_behind, x_offset_in_front])
+        horizontal_velocity_coefficient = py_random.random() * speed_coeff_modifier
+        
         car = self.state['car_bucket'].pop()
         
-        x_offset = ego_x + SCREEN_WIDTH * py_random.uniform(0.5, 1.0)
-        car.x = x_offset
-        car.y = int((lane.y_start + lane.y_end) / 2 - car.sprite.get_height() / 2)
+        velocity_x = self.state['ego'].velocity.x + horizontal_velocity_coefficient if x_offset == x_offset_behind else self.state['ego'].velocity.x - horizontal_velocity_coefficient
+        car.velocity = Vector(velocity_x, 0)
+        
+        car_sprite = car.sprite
+        car.x = (SCREEN_WIDTH * x_offset) - (car_sprite.get_width() // 2)
+        car.y = int((lane.y_start + lane.y_end) / 2 - car_sprite.get_height() / 2)
         car.lane = lane
-        car.velocity.x = self.state['ego'].velocity.x + py_random.uniform(-2, 5)
         self.state['cars'].append(car)

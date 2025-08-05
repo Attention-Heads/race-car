@@ -1165,6 +1165,8 @@ def main():
                        help='Disable phased training and use standard PPO')
     parser.add_argument('--viz-dir', type=str, default='./visualizations',
                        help='Directory for saving visualizations')
+    parser.add_argument('--render-eval', action='store_true',
+                       help='Enable rendering during evaluation runs')
     
     args = parser.parse_args()
     
@@ -1220,7 +1222,8 @@ def main():
     elif args.mode == 'eval':
         if not args.model_path:
             raise ValueError("Model path required for evaluation mode")
-        
+        # Set render flag in env config for evaluation
+        config['env_config']['render'] = args.render_eval
         logger.info("Starting model evaluation...")
         evaluate_model(args.model_path, config, n_episodes=20)
 
