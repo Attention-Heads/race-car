@@ -271,7 +271,7 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
         if not actions:
             # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
             # action_list = get_action()
-            action_list = get_action_from_rule_based_agent(STATE.sensors)
+            action_list = get_action_from_rule_based_agent(STATE.sensors, velocity)
 
             for act in action_list:
                 actions.append(act)
