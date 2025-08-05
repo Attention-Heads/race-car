@@ -317,26 +317,27 @@ class EvolutionaryTrainer:
                 self.population[individual_id].fitness = fitness
                 self.population[individual_id].raw_scores = raw_scores
         
-        # Sort population by fitness
+        # Sort population by raw fitness
         self.population.sort(key=lambda x: x.fitness, reverse=True)
         
-        # Update history
-        fitnesses = [ind.fitness for ind in self.population]
+        # Get RAW fitnesses for history and logging
+        raw_fitnesses = [ind.fitness for ind in self.population]
         
-        # Apply fitness scaling if enabled
+        # Apply fitness scaling for selection purposes (this modifies ind.scaled_fitness)
         if hasattr(self.config, 'fitness_sharing') and self.config.fitness_sharing:
             self._apply_fitness_scaling()
-            fitnesses = [ind.scaled_fitness for ind in self.population]
         
+        # Update history using the RAW fitnesses
         self.history['generation'].append(generation)
-        self.history['best_fitness'].append(max(fitnesses))
-        self.history['average_fitness'].append(np.mean(fitnesses))
-        self.history['worst_fitness'].append(min(fitnesses))
-        self.history['fitness_std'].append(np.std(fitnesses))
+        self.history['best_fitness'].append(np.max(raw_fitnesses))
+        self.history['average_fitness'].append(np.mean(raw_fitnesses))
+        self.history['worst_fitness'].append(np.min(raw_fitnesses))
+        self.history['fitness_std'].append(np.std(raw_fitnesses))
         
-        logger.info(f"Generation {generation}: Best={max(fitnesses):.2f}, "
-                   f"Avg={np.mean(fitnesses):.2f}, Worst={min(fitnesses):.2f}, "
-                   f"Std={np.std(fitnesses):.2f}")
+        # Log using the RAW fitnesses
+        logger.info(f"Generation {generation}: Best={np.max(raw_fitnesses):.2f}, "
+                f"Avg={np.mean(raw_fitnesses):.2f}, Worst={np.min(raw_fitnesses):.2f}, "
+                f"Std={np.std(raw_fitnesses):.2f}")
     
     def _apply_fitness_scaling(self):
         """Apply fitness scaling to reduce the impact of outliers"""
@@ -806,11 +807,11 @@ def main():
     parser = argparse.ArgumentParser(description="Train race car agent using evolutionary algorithm")
     parser.add_argument("--population-size", type=int, default=128, help="Population size")
     parser.add_argument("--generations", type=int, default=200, help="Number of generations")
-    parser.add_argument("--mutation-rate", type=float, default=0.05, help="Mutation rate")
+    parser.add_argument("--mutation-rate", type=float, default=0.1, help="Mutation rate")
     parser.add_argument("--crossover-rate", type=float, default=0.8, help="Crossover rate")
     parser.add_argument("--elite-ratio", type=float, default=0.2, help="Elite ratio to keep unchanged")
     parser.add_argument("--tournament-size", type=int, default=15, help="Tournament selection size")
-    parser.add_argument("--evaluations", type=int, default=3, help="Episodes per individual evaluation")
+    parser.add_argument("--evaluations", type=int, default=10, help="Episodes per individual evaluation")
     parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers")
     parser.add_argument("--save-dir", type=str, default="evolutionary_results", help="Directory to save results")
     parser.add_argument("--test", type=str, default=None, help="Path to weights file for testing")

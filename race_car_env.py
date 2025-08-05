@@ -37,9 +37,6 @@ class RaceCarEnv(gym.Env):
         
         self.reward_weights = self.config.get('reward_config')
         
-        # Log the reward configuration being used
-        logger.info(f"Environment initialized with reward weights: {self.reward_weights}")
-
     def reset(self, seed: int = None, options: Dict = None) -> Tuple[np.ndarray, Dict]:
         super().reset(seed=seed)
         
