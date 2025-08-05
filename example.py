@@ -1,5 +1,6 @@
 import pygame
 import random
+import asyncio
 from src.game.core import initialize_game_state, game_loop, continuous_game_loop, save_game_data
 
 
@@ -19,19 +20,20 @@ def return_action(state):
 
 
 if __name__ == '__main__':
-    # For watching your trained model play (single game)
-    seed_value = 565318  # Fixed seed for consistent testing
-    pygame.init()
+    # # For watching your trained model play (single game)
+    # seed_value = "565318"  # Fixed seed for consistent testing (string required)
+    # pygame.init()
     
-    # Initialize game with API URL pointing to your model server
-    api_url = "https://d13b8570bacb.ngrok-free.app/predict"
-    initialize_game_state(api_url, seed_value)
+    # # Initialize game with API URL pointing to your model server
+    # api_url = "http://0.0.0.0:9052/predict"  # Changed to http instead of https
+    # print(f"Initializing game with API URL: {api_url}")
+    # initialize_game_state(api_url, seed_value)
     
-    # Run the game loop - your model will control the car
-    game_loop(verbose=True)  # For pygame window
-    # save_game_data(1, seed_value)
-    pygame.quit()
+    # # Run the game loop - your model will control the car
+    # asyncio.run(game_loop(verbose=True))  # For pygame window
+    # # save_game_data(1, seed_value)
+    # pygame.quit()
     
     # For continuous data collection (uncomment below and comment above)
-    # pygame.init()
-    # continuous_game_loop(verbose=True, max_games=None)  # Set max_games to a number to limit games
+    pygame.init()
+    asyncio.run(continuous_game_loop(verbose=True, max_games=None))  # Set max_games to a number to limit games

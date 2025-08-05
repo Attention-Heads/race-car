@@ -7,6 +7,8 @@ import datetime
 import random as py_random
 import math
 import requests
+import aiohttp
+import asyncio
 from typing import List, Optional
 from ..mathematics.randomizer import seed, random_choice, random_number
 from ..elements.car import Car
@@ -21,6 +23,7 @@ LANE_COUNT = 5
 CAR_COLORS = ['yellow', 'blue', 'red']
 MAX_TICKS = 60 * 60  # 60 seconds @ 60 fps
 MAX_MS = 60 * 1000600   # 60 seconds flat
+RUN_MANUALLY = True  # Set to True to run the game manually without API
 
 # Define game state
 class GameState:
@@ -331,7 +334,7 @@ def get_action_json():
         return "NOTHING"
 
 
-def get_action_from_api():
+async def get_action_from_api():
     """
     Call the API to get an action based on current game state.
     Returns a single action string.
@@ -358,28 +361,58 @@ def get_action_from_api():
             'sensors': sensors_data
         }
         
-        # Make the API call
-        response = requests.post(
-            STATE.api_url,
-            json=request_data,
-            timeout=5  # 5 second timeout
-        )
+        # Debug: print request data for first few ticks
+        if STATE.ticks <= 3:
+            print(f"Debug - API Request data for tick {STATE.ticks}: {request_data}")
+            print(f"Debug - API URL: {STATE.api_url}")
         
-        if response.status_code == 200:
-            result = response.json()
-            # Handle both single action and list of actions
-            if 'action' in result:
-                return result['action']
-            elif 'actions' in result and result['actions']:
-                return result['actions'][0]  # Take first action from list
-            else:
-                return "NOTHING"
-        else:
-            print(f"API call failed with status {response.status_code}")
-            return "NOTHING"
-            
+        # Make the async API call with increased timeout
+        timeout = aiohttp.ClientTimeout(total=10)  # Increased to 10 second timeout
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(
+                STATE.api_url,
+                json=request_data
+            ) as response:
+                
+                if response.status == 200:
+                    result = await response.json()
+                    # Handle both single action and list of actions
+                    if 'action' in result:
+                        return result['action']
+                    elif 'actions' in result and result['actions']:
+                        return result['actions'][0]  # Take first action from list
+                    else:
+                        return "NOTHING"
+                else:
+                    print(f"API call failed with status {response.status}")
+                    response_text = await response.text()
+                    print(f"Response body: {response_text}")
+                    return "NOTHING"
+                    
+    except aiohttp.ClientConnectorError as e:
+        if STATE.ticks <= 3:  # Print this error for first few ticks
+            print(f"❌ Cannot connect to API server at {STATE.api_url}")
+            print("   Make sure the API server is running by executing: python api.py")
+            print("   Using fallback action 'NOTHING' for all subsequent calls...")
+        return "NOTHING"
+    except asyncio.TimeoutError as e:
+        if STATE.ticks <= 3:  # Print timeout error for first few ticks
+            print(f"⏰ Timeout Error: API server at {STATE.api_url} took longer than 10 seconds to respond")
+            print("   This usually means the server is overwhelmed or the model is taking too long to predict")
+            print("   Using fallback action 'NOTHING'...")
+        return "NOTHING"
+    except aiohttp.ServerTimeoutError as e:
+        if STATE.ticks <= 3:
+            print(f"⏰ Server Timeout Error: {str(e)}")
+            print("   The API server timed out while processing the request")
+        return "NOTHING"
+    except aiohttp.ClientError as e:
+        if STATE.ticks <= 3:
+            print(f"🌐 HTTP Client Error calling API: {type(e).__name__}: {str(e)}")
+        return "NOTHING"
     except Exception as e:
-        print(f"Error calling API: {e}")
+        if STATE.ticks <= 3:
+            print(f"💥 Unexpected Error calling API: {type(e).__name__}: {str(e)}")
         return "NOTHING"
 
 
@@ -513,7 +546,7 @@ def save_game_data(game_number: int, seed_value: str):
     except Exception as e:
         print(f"Error saving game data: {e}")
 
-def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "actions_log.json"):
+async def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "actions_log.json"):
     global STATE
     clock = pygame.time.Clock()
     screen = None
@@ -532,8 +565,12 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
             break
 
         if not actions:
+            if RUN_MANUALLY:
+                # If running manually, get action from keyboard input
+                action = get_action()
+            else:
             # Handle action - Call API to get action from your trained model
-            action = get_action_from_api()
+                action = await get_action_from_api()
             actions.append(action)
         
         if actions:
@@ -592,9 +629,10 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
 
             pygame.display.flip()
 
-def continuous_game_loop(verbose: bool = True, max_games: int = None):
+async def continuous_game_loop(verbose: bool = True, max_games: int = None):
     """
-    Run games continuously, saving data after each game and restarting automatically.
+    Run games continuously using keyboard input, saving data after each game and restarting automatically.
+    Controls: Arrow keys for steering/acceleration, ESC to quit.
     
     :param verbose: Whether to show the pygame window
     :param max_games: Maximum number of games to play (None for infinite)
@@ -616,15 +654,15 @@ def continuous_game_loop(verbose: bool = True, max_games: int = None):
             # Generate a new seed for each game
             seed_value = py_random.randint(100000, 999999)
             
-            # Initialize new game state
-            initialize_game_state("http://example.com/api/predict", seed_value)
+            # Initialize new game state without API URL since we're using keyboard input
+            initialize_game_state("", seed_value)
             
             # Reset action log for this game
             global ACTION_LOG
             ACTION_LOG = []
             
             # Run the game
-            game_loop(verbose=verbose)
+            await game_loop(verbose=verbose)
             
             # Save the game data
             save_game_data(game_number, seed_value)
@@ -662,13 +700,11 @@ def init(api_url: str):
 
 # Entry point
 if __name__ == "__main__":
-    # For continuous gameplay with data logging
-    continuous_game_loop(verbose=True, max_games=None)  # None for infinite games
-    
-    # For single game (uncomment below and comment above)
-    # seed_value = 565318
-    # pygame.init()
-    # initialize_game_state("http://example.com/api/predict", seed_value)
-    # game_loop(verbose=True)
-    # save_game_data(1, seed_value)
-    # pygame.quit()
+    if RUN_MANUALLY:
+        asyncio.run(continuous_game_loop(verbose=True, max_games=None))  # None for infinite games
+    else:
+        seed_value = 565318
+        pygame.init()
+        initialize_game_state("http://example.com/api/predict", seed_value)
+        asyncio.run(game_loop(verbose=True))
+        pygame.quit()

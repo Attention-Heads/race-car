@@ -53,6 +53,7 @@ def run_game():
     
     try:
         # Import here to avoid import issues if pygame isn't ready
+        import asyncio
         from src.game.core import initialize_game_state, game_loop, save_game_data
         
         # Initialize pygame
@@ -67,7 +68,7 @@ def run_game():
         
         # Run the game
         print("🚗 Game started! Watch your AI drive...")
-        game_loop(verbose=True)
+        asyncio.run(game_loop(verbose=True))
         
         # Save the game data
         save_game_data(1, seed_value)

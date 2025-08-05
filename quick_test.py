@@ -13,7 +13,7 @@ from preprocessing_utils import StatePreprocessor
 def load_model_and_scaler():
     """Load the trained model and preprocessor."""
     try:
-        agent = PPO.load("./models/final_model.zip")
+        agent = PPO.load("./models/ppo_initialized_with_bc.zip")
         print("✓ Model loaded successfully")
     except Exception as e:
         print(f"✗ Failed to load model: {e}")

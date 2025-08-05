@@ -110,7 +110,7 @@ class ImitationLearner:
     """
     
     def __init__(self, 
-                 expert_data_path: str = "expert_training_data.csv",
+                 expert_data_path: str = "processed_balanced_training_data.csv",
                  model_save_dir: str = "models",
                  use_velocity_scaler: bool = True):
         """

@@ -160,10 +160,13 @@ class StatePreprocessor:
                 logger.warning(f"Velocity scaling failed: {e}")
                 # Keep original velocity values if scaling fails
         
-        # Final check for NaN values
-        if np.isnan(state_array).any():
-            logger.warning("NaN detected in state array, replacing with defaults")
-            state_array = np.nan_to_num(state_array, nan=0.0, posinf=1.0, neginf=0.0)
+        # Handle NaN values differently for velocity vs sensors
+        # For velocity (first 2 elements): keep NaN values as-is (ignore them)
+        # For sensors (remaining elements): replace NaN with 1.0
+        if np.isnan(state_array[2:]).any():
+            # Only process sensor values (indices 2 and onwards)
+            sensor_mask = np.isnan(state_array[2:])
+            state_array[2:][sensor_mask] = 1.0
         
         return state_array
     
