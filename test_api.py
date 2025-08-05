@@ -11,7 +11,7 @@ import json
 async def test_api():
     """Test the API server with a sample request."""
     
-    api_url = "http://localhost:9052/predict"
+    api_url = "http://localhost:8000/predict"
     
     # Sample request data that matches what the game sends
     test_request = {

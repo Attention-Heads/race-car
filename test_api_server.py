@@ -9,7 +9,7 @@ import json
 
 async def test_api_server():
     """Test if the API server is running and responding."""
-    api_url = "http://localhost:9052/predict"
+    api_url = "http://localhost:8000/predict"
     
     # Sample request data
     test_request = {

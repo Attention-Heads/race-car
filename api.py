@@ -38,6 +38,10 @@ def process_request_for_model(request: RaceCarPredictRequestDto) -> np.ndarray:
     
     return PREPROCESSOR.preprocess_state_dict(state_dto)
 
+@app.get('/')
+def root():
+    return {"message": "Welcome to the Race Car API"}
+
 @app.post('/predict', response_model=RaceCarPredictResponseDto)
 def predict(request: RaceCarPredictRequestDto = Body(...)):
     try:
@@ -72,4 +76,4 @@ def predict(request: RaceCarPredictRequestDto = Body(...)):
         return RaceCarPredictResponseDto(error=f"Prediction failed: {str(e)}")
 
 if __name__ == '__main__':
-    uvicorn.run('api:app', host="0.0.0.0", port=9052, reload=True)
+    uvicorn.run('api:app', host="127.0.0.1", port=8000, reload=False)

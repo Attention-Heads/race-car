@@ -32,7 +32,7 @@ def start_api_server():
         
         # Check if the process is still running
         if process.poll() is None:
-            print("✅ API server started successfully on http://localhost:9052")
+            print("✅ API server started successfully on http://localhost:8000")
             return process
         else:
             stdout, stderr = process.communicate()
@@ -61,7 +61,7 @@ def run_game():
         
         # Set up the game with a fixed seed for reproducible results
         seed_value = 565318
-        api_url = "http://localhost:9052/predict"
+        api_url = "http://localhost:8000/predict"
         
         print(f"Initializing game with seed: {seed_value}")
         initialize_game_state(api_url, seed_value)

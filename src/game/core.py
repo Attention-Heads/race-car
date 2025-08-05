@@ -23,7 +23,7 @@ LANE_COUNT = 5
 CAR_COLORS = ['yellow', 'blue', 'red']
 MAX_TICKS = 60 * 60  # 60 seconds @ 60 fps
 MAX_MS = 60 * 1000600   # 60 seconds flat
-RUN_MANUALLY = True  # Set to True to run the game manually without API
+RUN_MANUALLY = False  # Set to True to run the game manually without API
 
 # Define game state
 class GameState:
@@ -339,6 +339,7 @@ async def get_action_from_api():
     Call the API to get an action based on current game state.
     Returns a single action string.
     """
+    print("Calling API for action...")
     if not STATE.api_url:
         return "NOTHING"
     
@@ -376,6 +377,7 @@ async def get_action_from_api():
                 
                 if response.status == 200:
                     result = await response.json()
+                    print(f"Debug - API Response for tick {STATE.ticks}: {result}")
                     # Handle both single action and list of actions
                     if 'action' in result:
                         return result['action']
@@ -702,9 +704,3 @@ def init(api_url: str):
 if __name__ == "__main__":
     if RUN_MANUALLY:
         asyncio.run(continuous_game_loop(verbose=True, max_games=None))  # None for infinite games
-    else:
-        seed_value = 565318
-        pygame.init()
-        initialize_game_state("http://example.com/api/predict", seed_value)
-        asyncio.run(game_loop(verbose=True))
-        pygame.quit()
