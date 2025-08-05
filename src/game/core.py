@@ -214,9 +214,10 @@ def initialize_game_state(api_url: str, seed_value: str, sensor_removal=0):
         (337.5, "left_side_back"),
     ]
 
-    for _ in range(sensor_removal):  # Removes random sensors
-        random_sensor = random_choice(sensor_options)
-        sensor_options.remove(random_sensor)
+    # Vi skal ikke fjerne sensorer
+    # for _ in range(sensor_removal):  # Removes random sensors
+    #     random_sensor = random_choice(sensor_options)
+    #     sensor_options.remove(random_sensor)
     STATE.sensors = [
         Sensor(STATE.ego, angle, name, STATE)
         for angle, name in sensor_options
