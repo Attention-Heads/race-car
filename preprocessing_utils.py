@@ -56,7 +56,6 @@ class StatePreprocessor:
         if self.use_velocity_scaler:
             try:
                 self.velocity_scaler = joblib.load(velocity_scaler_path)
-                logger.info(f"Loaded velocity scaler from {velocity_scaler_path}")
             except FileNotFoundError:
                 logger.warning(f"Velocity scaler not found at {velocity_scaler_path}")
                 self.velocity_scaler = None

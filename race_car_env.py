@@ -47,8 +47,6 @@ class RaceCarEnv(gym.Env):
         if seed is None:
             seed = np.random.randint(0, 1_000_000)
         
-        logger.info(f"Resetting environment with seed: {seed}")
-        
         # [+] Call the game's reset method directly
         self.current_state_dto = self.game.reset(seed_value=seed)
         self.previous_distance = self.current_state_dto['distance']

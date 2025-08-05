@@ -40,14 +40,17 @@ except OSError:
 @dataclass
 class EvolutionConfig:
     """Configuration for evolutionary algorithm"""
-    population_size: int = 100
+    population_size: int = 128
     generations: int = 200
-    mutation_rate: float = 0.1
-    crossover_rate: float = 0.7
-    elite_ratio: float = 0.1  # Top % of population to keep unchanged
-    tournament_size: int = 5
-    evaluations_per_individual: int = 3  # Number of episodes to average performance
+    mutation_rate: float = 0.05  # Reduced to preserve good traits
+    crossover_rate: float = 0.8  # Increased for more mixing of good genes
+    elite_ratio: float = 0.2  # Increased to keep more top performers
+    tournament_size: int = 15  # Increased for stronger selection pressure
+    evaluations_per_individual: int = 5  # Number of episodes to average performance
     max_workers: int = None  # For parallel evaluation
+    fitness_sharing: bool = True  # Enable fitness sharing to maintain diversity
+    selection_pressure: float = 2.0  # For rank-based selection
+    min_population_diversity: float = 0.1  # Minimum fitness std to maintain
     
 class SimpleNeuralNet(nn.Module):
     """Simple feedforward neural network for the race car agent"""
@@ -116,6 +119,7 @@ class Individual:
     def __init__(self, network: SimpleNeuralNet, fitness: float = 0.0):
         self.network = network
         self.fitness = fitness
+        self.scaled_fitness = fitness  # For fitness scaling
         self.raw_scores = []  # Store individual evaluation scores
         
     def evaluate(self, env_config: Dict, num_evaluations: int = 3, seed_offset: int = 0) -> float:
@@ -263,6 +267,37 @@ class EvolutionaryTrainer:
         tournament = np.random.choice(population, tournament_size, replace=False)
         return max(tournament, key=lambda x: x.fitness)
     
+    def _rank_based_selection(self, population: List[Individual]) -> Individual:
+        """Select individual using rank-based selection with exponential bias toward top performers"""
+        # Population should already be sorted by fitness (descending)
+        n = len(population)
+        
+        # Create exponential probabilities favoring top individuals
+        ranks = np.arange(n, 0, -1)  # Higher rank for better fitness
+        probabilities = np.power(ranks, self.config.selection_pressure)
+        probabilities = probabilities / np.sum(probabilities)
+        
+        # Select based on probabilities
+        selected_idx = np.random.choice(n, p=probabilities)
+        return population[selected_idx]
+    
+    def _fitness_proportionate_selection(self, population: List[Individual]) -> Individual:
+        """Select individual using fitness proportionate selection (roulette wheel)"""
+        fitnesses = np.array([ind.fitness for ind in population])
+        
+        # Handle negative fitnesses by shifting
+        min_fitness = np.min(fitnesses)
+        if min_fitness < 0:
+            fitnesses = fitnesses - min_fitness + 1
+        
+        # Avoid division by zero
+        if np.sum(fitnesses) == 0:
+            return np.random.choice(population)
+        
+        probabilities = fitnesses / np.sum(fitnesses)
+        selected_idx = np.random.choice(len(population), p=probabilities)
+        return population[selected_idx]
+    
     def _evaluate_population(self, generation: int):
         """Evaluate fitness of entire population in parallel"""
         logger.info(f"Evaluating population for generation {generation}...")
@@ -287,6 +322,12 @@ class EvolutionaryTrainer:
         
         # Update history
         fitnesses = [ind.fitness for ind in self.population]
+        
+        # Apply fitness scaling if enabled
+        if hasattr(self.config, 'fitness_sharing') and self.config.fitness_sharing:
+            self._apply_fitness_scaling()
+            fitnesses = [ind.scaled_fitness for ind in self.population]
+        
         self.history['generation'].append(generation)
         self.history['best_fitness'].append(max(fitnesses))
         self.history['average_fitness'].append(np.mean(fitnesses))
@@ -294,34 +335,111 @@ class EvolutionaryTrainer:
         self.history['fitness_std'].append(np.std(fitnesses))
         
         logger.info(f"Generation {generation}: Best={max(fitnesses):.2f}, "
-                   f"Avg={np.mean(fitnesses):.2f}, Worst={min(fitnesses):.2f}")
+                   f"Avg={np.mean(fitnesses):.2f}, Worst={min(fitnesses):.2f}, "
+                   f"Std={np.std(fitnesses):.2f}")
+    
+    def _apply_fitness_scaling(self):
+        """Apply fitness scaling to reduce the impact of outliers"""
+        fitnesses = np.array([ind.fitness for ind in self.population])
+        
+        # Sigma scaling - reduces the impact of fitness outliers
+        mean_fitness = np.mean(fitnesses)
+        std_fitness = np.std(fitnesses)
+        
+        if std_fitness > 0:
+            # Sigma scaling: f'(i) = max(f(i) - (mean - c*std), 0)
+            c = 2.0  # Scaling factor
+            scaled_fitnesses = np.maximum(fitnesses - (mean_fitness - c * std_fitness), 0.1)
+        else:
+            scaled_fitnesses = fitnesses
+        
+        # Linear ranking: assign fitness based on rank
+        sorted_indices = np.argsort(fitnesses)[::-1]  # Descending order
+        n = len(self.population)
+        
+        for i, idx in enumerate(sorted_indices):
+            rank = i + 1
+            # Linear ranking: best gets 2.0, worst gets 0.0
+            rank_fitness = 2.0 - 2.0 * (rank - 1) / (n - 1) if n > 1 else 1.0
+            self.population[idx].scaled_fitness = rank_fitness
     
     def _create_next_generation(self) -> List[Individual]:
         """Create next generation using selection, crossover, and mutation"""
         new_population = []
         
-        # Keep elite individuals
+        # Keep elite individuals (top performers)
         elite_count = int(self.config.population_size * self.config.elite_ratio)
         elite_individuals = [Individual(ind.network.clone(), ind.fitness) for ind in self.population[:elite_count]]
         new_population.extend(elite_individuals)
         
+        # Check population diversity and adjust selection strategy
+        fitnesses = [ind.fitness for ind in self.population]
+        fitness_std = np.std(fitnesses)
+        fitness_mean = np.mean(fitnesses)
+        diversity_ratio = fitness_std / (abs(fitness_mean) + 1e-8)
+        
+        logger.info(f"Population diversity ratio: {diversity_ratio:.4f}")
+        
         # Generate rest of population through crossover and mutation
         while len(new_population) < self.config.population_size:
-            # Select parents
-            parent1 = self._tournament_selection(self.population, self.config.tournament_size)
-            parent2 = self._tournament_selection(self.population, self.config.tournament_size)
+            # Use different selection strategies based on diversity
+            if diversity_ratio < self.config.min_population_diversity:
+                # Low diversity - use tournament selection to maintain some variety
+                parent1 = self._tournament_selection(self.population, max(3, self.config.tournament_size // 3))
+                parent2 = self._tournament_selection(self.population, max(3, self.config.tournament_size // 3))
+            elif diversity_ratio > 0.3:
+                # High diversity - use strong selection pressure
+                parent1 = self._rank_based_selection(self.population)
+                parent2 = self._rank_based_selection(self.population)
+            else:
+                # Medium diversity - mix of selection strategies
+                if np.random.random() < 0.7:
+                    parent1 = self._tournament_selection(self.population, self.config.tournament_size)
+                    parent2 = self._tournament_selection(self.population, self.config.tournament_size)
+                else:
+                    parent1 = self._rank_based_selection(self.population)
+                    parent2 = self._rank_based_selection(self.population)
+            
+            # Ensure parents are different
+            if parent1 == parent2 and len(self.population) > 1:
+                parent2 = self._tournament_selection(self.population, self.config.tournament_size)
             
             # Create offspring
             child1, child2 = parent1.crossover(parent2, self.config.crossover_rate)
             
-            # Apply mutations
-            child1.mutate(self.config.mutation_rate)
-            child2.mutate(self.config.mutation_rate)
+            # Apply adaptive mutation based on population diversity
+            mutation_rate = self.config.mutation_rate
+            if diversity_ratio < self.config.min_population_diversity:
+                mutation_rate *= 2.0  # Increase mutation for low diversity
+            elif diversity_ratio > 0.4:
+                mutation_rate *= 0.5  # Decrease mutation for high diversity
+            
+            child1.mutate(mutation_rate)
+            child2.mutate(mutation_rate)
             
             new_population.extend([child1, child2])
         
         # Trim to exact population size
-        return new_population[:self.config.population_size]
+        trimmed_population = new_population[:self.config.population_size]
+        
+        # Optional: Apply fitness-based culling if we have too many poor performers
+        if len(trimmed_population) == self.config.population_size:
+            # Calculate fitness threshold (remove bottom 10% if fitness variance is high)
+            sorted_by_fitness = sorted(trimmed_population, key=lambda x: x.fitness, reverse=True)
+            if diversity_ratio > 0.5:  # High variance indicates many poor performers
+                keep_count = int(0.9 * len(sorted_by_fitness))
+                trimmed_population = sorted_by_fitness[:keep_count]
+                
+                # Fill remaining spots with mutated copies of top performers
+                while len(trimmed_population) < self.config.population_size:
+                    # Pick from top 20%
+                    top_20_percent = int(0.2 * len(sorted_by_fitness))
+                    parent = sorted_by_fitness[np.random.randint(0, max(1, top_20_percent))]
+                    child = Individual(parent.network.clone())
+                    child.mutate(self.config.mutation_rate * 1.5)  # Higher mutation for diversity
+                    trimmed_population.append(child)
+        
+        return trimmed_population
     
     def train(self, resume_from: Optional[str] = None, start_generation: int = 0):
         """Main training loop"""
@@ -343,10 +461,10 @@ class EvolutionaryTrainer:
                     self._save_population_checkpoint(generation)  # Save population checkpoint
                     self._plot_progress()
                 
-                # Check for early stopping (optional)
-                if generation > 50 and self.history['best_fitness'][-1] > 1000:  # Adjust threshold as needed
-                    logger.info(f"Early stopping at generation {generation} due to high fitness")
-                    break
+                # # Check for early stopping (optional)
+                # if generation > 50 and self.history['best_fitness'][-1] > 1000:  # Adjust threshold as needed
+                #     logger.info(f"Early stopping at generation {generation} due to high fitness")
+                #     break
                 
                 # Create next generation (skip for last generation)
                 if generation < self.config.generations - 1:
@@ -686,12 +804,12 @@ def create_checkpoint_from_best_individual(best_individual_path: str, checkpoint
 
 def main():
     parser = argparse.ArgumentParser(description="Train race car agent using evolutionary algorithm")
-    parser.add_argument("--population-size", type=int, default=100, help="Population size")
+    parser.add_argument("--population-size", type=int, default=128, help="Population size")
     parser.add_argument("--generations", type=int, default=200, help="Number of generations")
-    parser.add_argument("--mutation-rate", type=float, default=0.1, help="Mutation rate")
-    parser.add_argument("--crossover-rate", type=float, default=0.7, help="Crossover rate")
-    parser.add_argument("--elite-ratio", type=float, default=0.1, help="Elite ratio to keep unchanged")
-    parser.add_argument("--tournament-size", type=int, default=5, help="Tournament selection size")
+    parser.add_argument("--mutation-rate", type=float, default=0.05, help="Mutation rate")
+    parser.add_argument("--crossover-rate", type=float, default=0.8, help="Crossover rate")
+    parser.add_argument("--elite-ratio", type=float, default=0.2, help="Elite ratio to keep unchanged")
+    parser.add_argument("--tournament-size", type=int, default=15, help="Tournament selection size")
     parser.add_argument("--evaluations", type=int, default=3, help="Episodes per individual evaluation")
     parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers")
     parser.add_argument("--save-dir", type=str, default="evolutionary_results", help="Directory to save results")
@@ -702,6 +820,8 @@ def main():
     parser.add_argument("--resume-latest", action="store_true", help="Resume from the latest checkpoint in save-dir")
     parser.add_argument("--create-checkpoint", type=str, default=None, help="Create population checkpoint from best individual file")
     parser.add_argument("--checkpoint-output", type=str, default=None, help="Output path for created checkpoint (used with --create-checkpoint)")
+    parser.add_argument("--selection-pressure", type=float, default=2.0, help="Selection pressure for rank-based selection")
+    parser.add_argument("--min-diversity", type=float, default=0.1, help="Minimum population diversity to maintain")
     
     args = parser.parse_args()
     
@@ -737,7 +857,10 @@ def main():
             elite_ratio=args.elite_ratio,
             tournament_size=args.tournament_size,
             evaluations_per_individual=args.evaluations,
-            max_workers=args.workers
+            max_workers=args.workers,
+            fitness_sharing=True,
+            selection_pressure=args.selection_pressure,
+            min_population_diversity=args.min_diversity
         )
         
         trainer = EvolutionaryTrainer(config, env_config, args.save_dir)
