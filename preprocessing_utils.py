@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 import joblib
 import logging
+import warnings
+from sklearn.exceptions import InconsistentVersionWarning
 from typing import Dict, Any, Optional, Union, List
 
 logger = logging.getLogger(__name__)
@@ -52,10 +54,12 @@ class StatePreprocessor:
         self.velocity_scaler_path = velocity_scaler_path
         self.velocity_scaler = None
         
-        # Load velocity scaler if available
+        # Load velocity scaler if available, suppress version mismatch warnings
         if self.use_velocity_scaler:
             try:
-                self.velocity_scaler = joblib.load(velocity_scaler_path)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings('ignore', category=InconsistentVersionWarning)
+                    self.velocity_scaler = joblib.load(velocity_scaler_path)
             except FileNotFoundError:
                 logger.warning(f"Velocity scaler not found at {velocity_scaler_path}")
                 self.velocity_scaler = None
