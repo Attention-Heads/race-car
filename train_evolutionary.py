@@ -323,18 +323,24 @@ class EvolutionaryTrainer:
         # Trim to exact population size
         return new_population[:self.config.population_size]
     
-    def train(self):
+    def train(self, resume_from: Optional[str] = None, start_generation: int = 0):
         """Main training loop"""
         logger.info("Starting evolutionary training...")
         
+        # Resume from checkpoint if specified
+        if resume_from:
+            start_generation = self.load_population_checkpoint(resume_from) + 1
+            logger.info(f"Resuming training from generation {start_generation}")
+        
         try:
-            for generation in range(self.config.generations):
+            for generation in range(start_generation, self.config.generations):
                 # Evaluate current population
                 self._evaluate_population(generation)
                 
                 # Save best individual and plot progress every 10 generations
                 if generation % 10 == 0:
                     self._save_best_individual(generation)
+                    self._save_population_checkpoint(generation)  # Save population checkpoint
                     self._plot_progress()
                 
                 # Check for early stopping (optional)
@@ -348,13 +354,17 @@ class EvolutionaryTrainer:
             
             # Final evaluation and save
             logger.info("Training completed!")
-            self._save_best_individual(self.config.generations - 1, final=True)
+            final_generation = len(self.history['generation']) - 1
+            self._save_best_individual(final_generation, final=True)
+            self._save_population_checkpoint(final_generation)  # Save final checkpoint
             self._plot_progress(final=True)
             self._save_training_history()
             
         except KeyboardInterrupt:
             logger.info("Training interrupted by user")
-            self._save_best_individual(len(self.history['generation']) - 1, final=True)
+            final_generation = len(self.history['generation']) - 1
+            self._save_best_individual(final_generation, final=True)
+            self._save_population_checkpoint(final_generation)  # Save interrupted checkpoint
             self._plot_progress(final=True)
     
     def _save_best_individual(self, generation: int, final: bool = False):
@@ -379,6 +389,73 @@ class EvolutionaryTrainer:
         torch.save(best_individual.network.state_dict(), model_path)
         
         logger.info(f"Saved best individual (fitness: {best_individual.fitness:.2f}) to {weights_path}")
+    
+    def _save_population_checkpoint(self, generation: int):
+        """Save entire population for resuming training"""
+        checkpoint_path = self.save_dir / f"population_checkpoint_gen_{generation}.pkl"
+        
+        population_data = []
+        for individual in self.population:
+            individual_data = {
+                'weights': individual.network.get_weights(),
+                'fitness': individual.fitness,
+                'raw_scores': individual.raw_scores,
+                'network_architecture': individual.network.layer_sizes
+            }
+            population_data.append(individual_data)
+        
+        checkpoint = {
+            'generation': generation,
+            'population': population_data,
+            'config': {
+                'population_size': self.config.population_size,
+                'mutation_rate': self.config.mutation_rate,
+                'crossover_rate': self.config.crossover_rate,
+                'elite_ratio': self.config.elite_ratio,
+                'tournament_size': self.config.tournament_size,
+                'evaluations_per_individual': self.config.evaluations_per_individual
+            },
+            'env_config': self.env_config,
+            'history': self.history
+        }
+        
+        with open(checkpoint_path, 'wb') as f:
+            pickle.dump(checkpoint, f)
+        
+        logger.info(f"Saved population checkpoint for generation {generation} to {checkpoint_path}")
+    
+    def load_population_checkpoint(self, checkpoint_path: str) -> int:
+        """Load population from checkpoint and return the generation number"""
+        logger.info(f"Loading population checkpoint from {checkpoint_path}")
+        
+        with open(checkpoint_path, 'rb') as f:
+            checkpoint = pickle.load(f)
+        
+        generation = checkpoint['generation']
+        population_data = checkpoint['population']
+        self.history = checkpoint.get('history', {
+            'generation': [],
+            'best_fitness': [],
+            'average_fitness': [],
+            'worst_fitness': [],
+            'fitness_std': []
+        })
+        
+        # Reconstruct population
+        self.population = []
+        for individual_data in population_data:
+            # Create network with saved architecture
+            arch = individual_data['network_architecture']
+            network = SimpleNeuralNet(arch[0], arch[1:-1], arch[-1])
+            network.set_weights(individual_data['weights'])
+            
+            # Create individual
+            individual = Individual(network, individual_data['fitness'])
+            individual.raw_scores = individual_data.get('raw_scores', [])
+            self.population.append(individual)
+        
+        logger.info(f"Loaded population of {len(self.population)} individuals from generation {generation}")
+        return generation
     
     def _plot_progress(self, final: bool = False):
         """Plot training progress"""
@@ -531,6 +608,82 @@ def test_evolved_agent(weights_path: str, env_config: Dict, num_episodes: int = 
     
     return episode_distances
 
+def create_checkpoint_from_best_individual(best_individual_path: str, checkpoint_path: str, 
+                                         population_size: int = 100, generation: int = 0):
+    """Create a population checkpoint by replicating the best individual with mutations"""
+    logger.info(f"Creating checkpoint from best individual: {best_individual_path}")
+    
+    # Load the best individual
+    with open(best_individual_path, 'rb') as f:
+        best_data = pickle.load(f)
+    
+    # Create population by mutating the best individual
+    population_data = []
+    
+    # First individual is the exact copy of the best
+    population_data.append({
+        'weights': best_data['weights'].copy(),
+        'fitness': best_data.get('fitness', 0.0),
+        'raw_scores': best_data.get('raw_scores', []),
+        'network_architecture': best_data['network_architecture']
+    })
+    
+    # Create the rest with mutations
+    for i in range(1, population_size):
+        weights = best_data['weights'].copy()
+        
+        # Apply random mutations (stronger for diversity)
+        mutation_rate = 0.2 + (i / population_size) * 0.3  # Varying mutation rates
+        mutation_strength = 0.1 + (i / population_size) * 0.2
+        
+        mutation_mask = np.random.random(weights.shape) < mutation_rate
+        mutations = np.random.normal(0, mutation_strength, weights.shape)
+        weights[mutation_mask] += mutations[mutation_mask]
+        
+        population_data.append({
+            'weights': weights,
+            'fitness': 0.0,  # Will be evaluated
+            'raw_scores': [],
+            'network_architecture': best_data['network_architecture']
+        })
+    
+    # Create checkpoint structure
+    checkpoint = {
+        'generation': generation,
+        'population': population_data,
+        'config': {
+            'population_size': population_size,
+            'mutation_rate': 0.1,
+            'crossover_rate': 0.7,
+            'elite_ratio': 0.1,
+            'tournament_size': 5,
+            'evaluations_per_individual': 3
+        },
+        'env_config': {
+            'render': False,
+            'reward_config': {
+                'distance_weight': 1.0,
+                'survival_weight': 0.1,
+                'crash_penalty': -10.0,
+                'action_penalty': -0.01
+            }
+        },
+        'history': {
+            'generation': [],
+            'best_fitness': [],
+            'average_fitness': [],
+            'worst_fitness': [],
+            'fitness_std': []
+        }
+    }
+    
+    # Save checkpoint
+    with open(checkpoint_path, 'wb') as f:
+        pickle.dump(checkpoint, f)
+    
+    logger.info(f"Created population checkpoint with {population_size} individuals at {checkpoint_path}")
+    return checkpoint_path
+
 def main():
     parser = argparse.ArgumentParser(description="Train race car agent using evolutionary algorithm")
     parser.add_argument("--population-size", type=int, default=100, help="Population size")
@@ -545,6 +698,10 @@ def main():
     parser.add_argument("--test", type=str, default=None, help="Path to weights file for testing")
     parser.add_argument("--test-episodes", type=int, default=10, help="Number of test episodes")
     parser.add_argument("--render", action="store_true", help="Enable rendering during training")
+    parser.add_argument("--resume", type=str, default=None, help="Path to population checkpoint file to resume training from")
+    parser.add_argument("--resume-latest", action="store_true", help="Resume from the latest checkpoint in save-dir")
+    parser.add_argument("--create-checkpoint", type=str, default=None, help="Create population checkpoint from best individual file")
+    parser.add_argument("--checkpoint-output", type=str, default=None, help="Output path for created checkpoint (used with --create-checkpoint)")
     
     args = parser.parse_args()
     
@@ -562,6 +719,14 @@ def main():
     if args.test:
         # Test mode
         test_evolved_agent(args.test, env_config, args.test_episodes)
+    elif args.create_checkpoint:
+        # Create checkpoint mode
+        output_path = args.checkpoint_output or f"{args.save_dir}/population_checkpoint_from_best.pkl"
+        create_checkpoint_from_best_individual(
+            args.create_checkpoint, 
+            output_path, 
+            args.population_size
+        )
     else:
         # Training mode
         config = EvolutionConfig(
@@ -576,7 +741,27 @@ def main():
         )
         
         trainer = EvolutionaryTrainer(config, env_config, args.save_dir)
-        trainer.train()
+        
+        # Handle resume options
+        resume_from = None
+        if args.resume:
+            resume_from = args.resume
+        elif args.resume_latest:
+            # Find the latest checkpoint in save_dir
+            save_path = Path(args.save_dir)
+            if save_path.exists():
+                checkpoint_files = list(save_path.glob("population_checkpoint_gen_*.pkl"))
+                if checkpoint_files:
+                    # Sort by generation number
+                    checkpoint_files.sort(key=lambda x: int(x.stem.split('_')[-1]))
+                    resume_from = str(checkpoint_files[-1])
+                    logger.info(f"Found latest checkpoint: {resume_from}")
+                else:
+                    logger.warning("No checkpoint files found for --resume-latest")
+            else:
+                logger.warning(f"Save directory {args.save_dir} does not exist")
+        
+        trainer.train(resume_from=resume_from)
 
 if __name__ == "__main__":
     main()
