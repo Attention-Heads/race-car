@@ -269,8 +269,11 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
                 # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
                 action_list = get_action()
             
-            for act in action_list:
-                actions.append(act)
+            if isinstance(action_list, str):
+                actions.append(action_list)
+            else:
+                for act in action_list:
+                    actions.append(act)
         action = actions.pop(0)
 
         # Log the action with tick
