@@ -455,7 +455,6 @@ class EvolutionaryTrainer:
                     net = SimpleNeuralNet(self.obs_size)
                     newcomers.append(Individual(net))
                 trimmed_population = survivors + newcomers
-                logger.info(f"Immigration: replaced {immig_count} worst individuals with new random actors")
         
         return trimmed_population
     
@@ -828,11 +827,11 @@ def main():
     parser = argparse.ArgumentParser(description="Train race car agent using evolutionary algorithm")
     parser.add_argument("--population-size", type=int, default=128, help="Population size")
     parser.add_argument("--generations", type=int, default=200, help="Number of generations")
-    parser.add_argument("--mutation-rate", type=float, default=0.1, help="Mutation rate")
+    parser.add_argument("--mutation-rate", type=float, default=0.02, help="Mutation rate")
     parser.add_argument("--crossover-rate", type=float, default=0.8, help="Crossover rate")
-    parser.add_argument("--elite-ratio", type=float, default=0.15, help="Elite ratio to keep unchanged")
+    parser.add_argument("--elite-ratio", type=float, default=0.2, help="Elite ratio to keep unchanged")
     parser.add_argument("--tournament-size", type=int, default=16, help="Tournament selection size")
-    parser.add_argument("--evaluations", type=int, default=8, help="Episodes per individual evaluation")
+    parser.add_argument("--evaluations", type=int, default=16, help="Episodes per individual evaluation")
     parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers")
     parser.add_argument("--save-dir", type=str, default="evolutionary_results", help="Directory to save results")
     parser.add_argument("--test", type=str, default=None, help="Path to weights file for testing")
@@ -844,7 +843,7 @@ def main():
     parser.add_argument("--checkpoint-output", type=str, default=None, help="Output path for created checkpoint (used with --create-checkpoint)")
     parser.add_argument("--selection-pressure", type=float, default=2.0, help="Selection pressure for rank-based selection")
     parser.add_argument("--min-diversity", type=float, default=0.1, help="Minimum population diversity to maintain")
-    parser.add_argument("--immigration-ratio", type=float, default=0.1, help="Fraction of worst individuals replaced by random newcomers per generation")
+    parser.add_argument("--immigration-ratio", type=float, default=0.02, help="Fraction of worst individuals replaced by random newcomers per generation")
 
     args = parser.parse_args()
     
