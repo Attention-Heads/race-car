@@ -254,6 +254,8 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
     clock = pygame.time.Clock()
     screen = None
     actions = []
+    maneuver_actions = []
+    lane_change_initiated = False
     if verbose:
         screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("Race Car Game")
@@ -267,6 +269,35 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
             print(
                 f"Game over: Crashed: {STATE.crashed}, Ticks: {STATE.ticks}, Elapsed time: {STATE.elapsed_game_time} ms, Distance: {STATE.distance}")
             break
+
+        # Lane change maneuver
+        if STATE.elapsed_game_time > 3000 and not lane_change_initiated:
+            lane_change_sequence = ["STEER_RIGHT"] * 48 + ["STEER_LEFT"] * 48
+            for act in lane_change_sequence:
+                maneuver_actions.append(act)
+            lane_change_initiated = True
+
+        steering_action = None
+        if maneuver_actions:
+            steering_action = maneuver_actions.pop(0)
+
+        # Get cruise control action
+        sensor_data = {
+            sensor.name: sensor.reading
+            for sensor in STATE.sensors
+        }
+        cruise_control_actions = get_action_from_rule_based_agent(sensor_data)
+
+        # Combine actions
+        action_list = cruise_control_actions
+        if steering_action:
+            action_list.append(steering_action)
+
+        if not action_list:
+            action_list = ["NOTHING"]
+
+        for act in action_list:
+            actions.append(act)
 
         if not actions:
             # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
