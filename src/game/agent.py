@@ -1,7 +1,7 @@
 from typing import List
 
 
-def get_action_from_rule_based_agent(sensor_data: dict) -> List[str]:
+def get_action_from_rule_based_agent(sensor_data: dict, ticks: int) -> List[str]:
 
     def sanitize(value):
         return value if value is not None else 1000
@@ -13,6 +13,9 @@ def get_action_from_rule_based_agent(sensor_data: dict) -> List[str]:
         "right_side", "right_side_back", "right_back", "back_right_back",
         "back", "back_left_back", "left_back", "left_side_back"
     ]}
+
+    if ticks > 3580 and s['front'] > 500:
+        return ['ACCELERATE']
 
     # Cruise control model
     if s['front'] < 1000:

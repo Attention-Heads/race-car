@@ -278,7 +278,7 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
                 for sensor in STATE.sensors
             }
             action_list = get_action_from_rule_based_agent(
-                sensor_data)
+                sensor_data, STATE.ticks)
 
             for act in action_list:
                 actions.append(act)
