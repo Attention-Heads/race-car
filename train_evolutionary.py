@@ -51,7 +51,7 @@ class EvolutionConfig:
     fitness_sharing: bool = True  # Enable fitness sharing to maintain diversity
     selection_pressure: float = 2.0  # For rank-based selection
     min_population_diversity: float = 0.1  # Minimum fitness std to maintain
-    immigration_ratio: float = 0.1       # Fraction of worst individuals replaced by random newcomers per generation
+    immigration_ratio: float = 0.05       # Fraction of worst individuals replaced by random newcomers per generation
     
 class SimpleNeuralNet(nn.Module):
     """Simple feedforward neural network for the race car agent"""
@@ -441,7 +441,7 @@ class EvolutionaryTrainer:
                     child.mutate(self.config.mutation_rate * 1.5)  # Higher mutation for diversity
                     trimmed_population.append(child)
         # Immigration: replace worst individuals with new random actors
-        immig_ratio = getattr(self.config, 'immigration_ratio', 0)
+        immig_ratio = self.config.get('immigration_ratio', 0)
         if immig_ratio > 0:
             immig_count = int(self.config.population_size * immig_ratio)
             if immig_count > 0:
@@ -883,7 +883,8 @@ def main():
             max_workers=args.workers,
             fitness_sharing=True,
             selection_pressure=args.selection_pressure,
-            min_population_diversity=args.min_diversity
+            min_population_diversity=args.min_diversity,
+            immigration_ratio=args.immigration_ratio
         )
         
         trainer = EvolutionaryTrainer(config, env_config, args.save_dir)
