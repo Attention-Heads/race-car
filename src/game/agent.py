@@ -1,7 +1,8 @@
 from typing import List, Dict
 
-N = 48 # 34 for while de/accelerating
-
+_N_LANE_CHANGE = 47
+_N_LANE_CHANGE_DIAGONAL = 34
+_N_LANE_CHANGE_DIAGONAL_BACK = 34
 class RuleBasedAgent:
     def __init__(self):
         self.maneuver_sequence = []
@@ -26,13 +27,32 @@ class RuleBasedAgent:
     def initate_change_lane_right(self):
         if not self.is_performing_maneuver:
             self.is_performing_maneuver = True
-            self.maneuver_sequence = ["STEER_RIGHT"] * N + ["STEER_LEFT"] * N
+            self.maneuver_sequence = ["STEER_RIGHT"] * _N_LANE_CHANGE + ["STEER_LEFT"] * _N_LANE_CHANGE
 
     def initate_change_lane_left(self):
         if not self.is_performing_maneuver:
             self.is_performing_maneuver = True
-            self.maneuver_sequence = ["STEER_LEFT"] * N + ["STEER_RIGHT"] * N
-        
+            self.maneuver_sequence = ["STEER_LEFT"] * _N_LANE_CHANGE + ["STEER_RIGHT"] * _N_LANE_CHANGE
+
+    def initate_change_lane_left_front(self):
+        if not self.is_performing_maneuver:
+            self.is_performing_maneuver = True
+            self.maneuver_sequence = (["STEER_LEFT"] + ['ACCELERATE']) * _N_LANE_CHANGE_DIAGONAL + (["STEER_RIGHT"] + ['DECELERATE']) * _N_LANE_CHANGE_DIAGONAL
+    
+    def initate_change_lane_right_front(self):
+        if not self.is_performing_maneuver:
+            self.is_performing_maneuver = True
+            self.maneuver_sequence = (["STEER_RIGHT"] + ['ACCELERATE']) * _N_LANE_CHANGE_DIAGONAL + (["STEER_LEFT"] + ['DECELERATE']) * _N_LANE_CHANGE_DIAGONAL
+
+    def initate_change_lane_right_back(self):
+        if not self.is_performing_maneuver:
+            self.is_performing_maneuver = True
+            self.maneuver_sequence = (["STEER_RIGHT"] + ['DECELERATE']) * _N_LANE_CHANGE_DIAGONAL_BACK + (["STEER_LEFT"] + ['ACCELERATE']) * _N_LANE_CHANGE_DIAGONAL_BACK
+
+    def initate_change_lane_left_back(self):
+        if not self.is_performing_maneuver:
+            self.is_performing_maneuver = True
+            self.maneuver_sequence = (["STEER_LEFT"] + ['DECELERATE']) * _N_LANE_CHANGE_DIAGONAL_BACK + (["STEER_RIGHT"] + ['ACCELERATE']) * _N_LANE_CHANGE_DIAGONAL_BACK
 
     def get_actions(self, sensor_data: dict) -> List[str]:
         # Sanitize sensor data

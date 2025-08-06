@@ -279,8 +279,8 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
         if not actions:
             # Decide when to change lane (for now, after 3 seconds)
             if STATE.elapsed_game_time > 3000 and not lane_change_initiated:
-                agent.initate_change_lane_right()
-                print("Change lane right")
+                agent.initate_change_lane_left()
+                print("Change lane")
                 lane_change_initiated = True
                 
             sensor_data = {
