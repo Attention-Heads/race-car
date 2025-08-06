@@ -15,14 +15,13 @@ def get_action_from_rule_based_agent(sensor_data: dict) -> List[str]:
     ]}
 
     # Cruise control model
-
     if s['front'] < 1000:
         return ['DECELERATE']
-    elif s['front'] >= 1000:
-        return ['ACCELERATE']
+    elif s['back'] > 500 and s['back'] < 1000:
+        return ['DECELERATE']
     elif s['back'] < 500:
         return ['ACCELERATE']
-    elif s['back'] > 500:
-        return ['DECELERATE']
+    elif s['front'] >= 1000:
+        return ['ACCELERATE']
     else:
         return ['NOTHING']

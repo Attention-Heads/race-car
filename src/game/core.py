@@ -295,8 +295,8 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
         remove_passed_cars()
         place_car()
 
-        print("Current action:", action)
-        print("Currnet tick:", STATE.ticks)
+        # print("Current action:", action)
+        # print("Currnet tick:", STATE.ticks)
 
         # Update sensors
         for sensor in STATE.sensors:

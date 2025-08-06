@@ -17,7 +17,7 @@ start_time = time.time()
 @app.post('/predict', response_model=RaceCarPredictResponseDto)
 def predict(request: RaceCarPredictRequestDto = Body(...)):
     # action = return_action(request.dict())
-    actions = get_action_from_rule_based_agent(request.dict())
+    actions = get_action_from_rule_based_agent(request.dict().get('sensors'))
     return RaceCarPredictResponseDto(
         # action_type=action['action_type'],
         actions=actions
