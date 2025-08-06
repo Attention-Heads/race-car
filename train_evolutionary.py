@@ -55,7 +55,7 @@ class EvolutionConfig:
 class SimpleNeuralNet(nn.Module):
     """Simple feedforward neural network for the race car agent"""
     
-    def __init__(self, input_size: int, hidden_sizes: List[int] = [64, 32], output_size: int = 5):
+    def __init__(self, input_size: int, hidden_sizes: List[int] = [128, 64], output_size: int = 5):
         super(SimpleNeuralNet, self).__init__()
         
         self.input_size = input_size
@@ -245,7 +245,7 @@ class EvolutionaryTrainer:
             self.config.max_workers = min(mp.cpu_count(), self.config.population_size)
         
         logger.info(f"Initialized evolutionary trainer with {self.config.population_size} individuals")
-        logger.info(f"Network architecture: {self.obs_size} -> [64, 32] -> 5")
+        logger.info(f"Network architecture: {self.obs_size} -> [128, 64] -> 5")
         logger.info(f"Using {self.config.max_workers} workers for parallel evaluation")
     
     def _initialize_population(self) -> List[Individual]:
@@ -836,9 +836,9 @@ def main():
         'reward_config': {
             'distance_weight': 1.0,
             'survival_weight': 0.1,
-            'crash_penalty': -10.0,
+            'crash_penalty': -100.0,
             'action_penalty': -0.01,
-            'speed_bonus': 0.05 
+            'speed_bonus': 0.5 
         }
     }
     
