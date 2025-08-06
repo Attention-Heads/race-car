@@ -41,6 +41,12 @@ class GameState:
 STATE = None
 
 
+def draw_text(surface, text, x, y, font_size=24, color=(255, 255, 255)):
+    font = pygame.font.SysFont("monospace", font_size)
+    text_surface = font.render(text, True, color)
+    surface.blit(text_surface, (x, y))
+
+
 def intersects(rect1, rect2):
     return rect1.colliderect(rect2)
 
@@ -341,6 +347,10 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
             if STATE.sensors_enabled:
                 for sensor in STATE.sensors:
                     sensor.draw(screen)
+
+            # Draw velocity
+            velocity_text = f"Velocity: ({STATE.ego.velocity.x:.2f}, {STATE.ego.velocity.y:.2f})"
+            draw_text(screen, velocity_text, 10, 10)
 
             pygame.display.flip()
 
