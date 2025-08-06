@@ -169,10 +169,10 @@ def get_action_json():
         return "NOTHING"
 
 
-def initialize_game_state( api_url: str, seed_value: str, sensor_removal = 0, action_handler=None):
+def initialize_game_state(api_url: str, seed_value: str, sensor_removal = 0, action_handler=None):
     seed(seed_value)
     global STATE
-    STATE = GameState(api_url, action_handler=action_handler)
+    STATE = GameState(api_url, action_handler)
 
     # Create environment
     STATE.road = Road(SCREEN_WIDTH, SCREEN_HEIGHT, LANE_COUNT)
@@ -271,7 +271,7 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
             
             for act in action_list:
                 actions.append(act)
-        action = actions.pop()
+        action = actions.pop(0)
 
         # Log the action with tick
         if log_actions:
