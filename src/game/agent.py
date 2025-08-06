@@ -21,14 +21,8 @@ class RuleBasedAgent:
         # Cruise control model
         if s['front'] < 1000:
             return ['DECELERATE']
-        elif s['back'] > 500 and s['back'] < 1000:
-            return ['DECELERATE']
-        elif s['back'] < 500:
-            return ['ACCELERATE']
-        elif s['front'] >= 1000:
-            return ['ACCELERATE']
         else:
-            return []  # Return empty list for no action
+            return ['ACCELERATE']
 
     def initate_change_lane_right(self):
         if not self.is_performing_maneuver:
@@ -89,28 +83,28 @@ class RuleBasedAgent:
 
         # Lane change - left
         if not self.has_gone_to_left:
-            if s['front_left_front'] < 600 and self.promising_car_left:
+            if s['back_left_back'] < 600 and self.promising_car_left:
                 self.has_gone_to_left = True
                 self.has_gone_to_right = False
-                self.initate_change_lane_left_back()
-            elif s['back_left_back'] < 600:
-                self.promising_car_left = 'back_left_back'
+                self.initate_change_lane_left_front()
+            elif s['front_left_front'] < 600:
+                self.promising_car_left = 'front_left_front'
 
-            if self.promising_car_left == 'back_left_back' and s['left_side'] < 200:
+            if self.promising_car_left == 'front_left_front' and s['left_side'] < 200:
                 self.promising_car_left == True
             else:
                 self.promising_car_left = False
 
         # Lane change - right
         if not self.has_gone_to_right:
-            if s['front_right_front'] < 600 and self.promising_car_right:
+            if s['back_right_back'] < 600 and self.promising_car_right:
                 self.has_gone_to_right = True
                 self.has_gone_to_left = False
-                self.initate_change_lane_right_back()
-            elif s['back_right_back'] < 600:
-                self.promising_car_right = 'back_right_back'
+                self.initate_change_lane_right_front()
+            elif s['front_right_front'] < 600:
+                self.promising_car_right = 'front_right_front'
 
-            if self.promising_car_right == 'back_right_back' and s['right_side'] < 200:
+            if self.promising_car_right == 'front_right_front' and s['right_side'] < 200:
                 self.promising_car_right == True
             else:
                 self.promising_car_right = False
