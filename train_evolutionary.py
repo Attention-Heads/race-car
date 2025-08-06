@@ -441,7 +441,7 @@ class EvolutionaryTrainer:
                     child.mutate(self.config.mutation_rate * 1.5)  # Higher mutation for diversity
                     trimmed_population.append(child)
         # Immigration: replace worst individuals with new random actors
-        immig_ratio = self.config.get('immigration_ratio', 0)
+        immig_ratio = self.config.immigration_ratio
         if immig_ratio > 0:
             immig_count = int(self.config.population_size * immig_ratio)
             if immig_count > 0:
