@@ -787,7 +787,8 @@ def create_checkpoint_from_best_individual(best_individual_path: str, checkpoint
                 'distance_weight': 1.0,
                 'survival_weight': 0.1,
                 'crash_penalty': -10.0,
-                'action_penalty': -0.01
+                'action_penalty': -0.01,
+                'speed_bonus': 0.05  # Reward for driving fast
             }
         },
         'history': {
@@ -813,8 +814,8 @@ def main():
     parser.add_argument("--mutation-rate", type=float, default=0.1, help="Mutation rate")
     parser.add_argument("--crossover-rate", type=float, default=0.8, help="Crossover rate")
     parser.add_argument("--elite-ratio", type=float, default=0.2, help="Elite ratio to keep unchanged")
-    parser.add_argument("--tournament-size", type=int, default=15, help="Tournament selection size")
-    parser.add_argument("--evaluations", type=int, default=10, help="Episodes per individual evaluation")
+    parser.add_argument("--tournament-size", type=int, default=16, help="Tournament selection size")
+    parser.add_argument("--evaluations", type=int, default=8, help="Episodes per individual evaluation")
     parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers")
     parser.add_argument("--save-dir", type=str, default="evolutionary_results", help="Directory to save results")
     parser.add_argument("--test", type=str, default=None, help="Path to weights file for testing")
@@ -836,7 +837,8 @@ def main():
             'distance_weight': 1.0,
             'survival_weight': 0.1,
             'crash_penalty': -10.0,
-            'action_penalty': -0.01
+            'action_penalty': -0.01,
+            'speed_bonus': 0.05 
         }
     }
     
