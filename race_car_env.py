@@ -52,7 +52,9 @@ class RaceCarEnv(gym.Env):
         # [+] Call the game's reset method directly
         self.current_state_dto = self.game.reset(seed_value=seed)
         self.previous_distance = self.current_state_dto['distance']
-        
+        # Record starting y-position for center-of-track penalty
+        self.start_y = self.game.state['ego'].y
+
         observation = self._flatten_and_process_state(self.current_state_dto)
         info = {'distance': self.current_state_dto['distance'], 'crashed': self.current_state_dto['did_crash']}
         
@@ -118,7 +120,19 @@ class RaceCarEnv(gym.Env):
         if 'time_penalty' in self.reward_weights:
             reward += self.reward_weights['time_penalty']
 
-        # Optional speed bonus (only if configured)
+        # Optional speed bonuses (only if configured)
+        # X-direction speed bonus
+        if 'x_speed_bonus' in self.reward_weights and self.reward_weights['x_speed_bonus'] != 0:
+            x_speed = current_dto['velocity']['x']
+            reward += x_speed * self.reward_weights['x_speed_bonus']
+            
+        # Y-direction speed bonus (logarithmic)
+        if 'y_speed_bonus' in self.reward_weights and self.reward_weights['y_speed_bonus'] != 0:
+            y_speed = abs(current_dto['velocity']['y'])
+            # Use log(1 + y_speed) to ensure it's defined for y_speed=0
+            reward += np.log1p(y_speed) * self.reward_weights['y_speed_bonus']
+
+        # Legacy speed bonus support (for backward compatibility)
         if 'speed_bonus' in self.reward_weights and self.reward_weights['speed_bonus'] != 0:
             speed = np.linalg.norm([current_dto['velocity']['x'], current_dto['velocity']['y']])
             reward += speed * self.reward_weights['speed_bonus']
@@ -141,6 +155,12 @@ class RaceCarEnv(gym.Env):
                     proximity_factor = (proximity_threshold - min_distance) / proximity_threshold
                     reward += proximity_factor * self.reward_weights['proximity_penalty']
         
+        # Nerf for staying at the very start y-position (big penalty)
+        if 'start_pos_penalty' in self.reward_weights:
+            current_y = self.game.state['ego'].y
+            if abs(current_y - getattr(self, 'start_y', current_y)) < 1e-3:
+                reward += self.reward_weights['start_pos_penalty']
+
         return reward
         
     def render(self, mode='human'):

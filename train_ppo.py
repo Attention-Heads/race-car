@@ -12,7 +12,7 @@ from stable_baselines3 import PPO
 from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.callbacks import EvalCallback, StopTrainingOnRewardThreshold, BaseCallback
 from stable_baselines3.common.monitor import Monitor
-from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv, VecEnv
 from stable_baselines3.common.policies import ActorCriticPolicy
 import gymnasium as gym
 from race_car_env import make_race_car_env
@@ -743,11 +743,13 @@ def create_training_config() -> Dict[str, Any]:
             'api_endpoint': 'http://localhost:8000/predict',
             'max_steps': 1000,
             'reward_config': {
-                'distance_progress': 1.0,      # Primary reward: 2 points per unit distance
-                'crash_penalty': -5_000.0,      # Strong crash penalty (equivalent to losing 2000 distance)
-                'time_penalty': 10.0,         # Very small time penalty to encourage efficiency
-                'speed_bonus': 0,            # Small bonus for maintaining speed
-                'proximity_penalty': -10,     # Small penalty for being too close to walls
+                'distance_progress': 3.0,      # Primary reward: 4 points per unit distance
+                'crash_penalty': -15_000.0,      # Strong crash penalty (equivalent to losing 2000 distance)
+                'time_penalty': 0.0,         # Very small time penalty to encourage efficiency
+                'x_speed_bonus': 0.05,         # Bonus for forward speed (x-direction)
+                'y_speed_bonus': 10.0,         # Bonus for lateral speed (y-direction)
+                'start_pos_penalty': -20.0,     # Penalty for starting at the initial y-position
+                'proximity_penalty': -0.1,     # Small penalty for being too close to walls
             }
         },
         
@@ -775,9 +777,9 @@ def create_training_config() -> Dict[str, Any]:
                 # Phase 1: SURVIVAL & EXPLORATION (Focus on not crashing)
                 {
                     'phase_name': 'survival_and_exploration',
-                    'duration_timesteps': 500_000,   # Longer phase to ensure survival is learned
-                    'learning_rate': 1e-4,          # Lower learning rate for stable learning of basics
-                    'ent_coef': 0.10,               # HIGH entropy to encourage maximum exploration
+                    'duration_timesteps': 40_000,   # Longer phase to ensure survival is learned
+                    'learning_rate': 2e-5,          # Lower learning rate for stable learning of basics
+                    'ent_coef': 0.5,               # HIGH entropy to encourage maximum exploration
                     'clip_range': 0.1,              # Conservative clipping
                     'n_epochs': 5,
                     'description': 'Goal: Learn to survive and explore the track without crashing.'
@@ -786,8 +788,8 @@ def create_training_config() -> Dict[str, Any]:
                 {
                     'phase_name': 'race_fundamentals',
                     'duration_timesteps': 40_000,
-                    'learning_rate': 2e-4,          # Increase learning rate slightly
-                    'ent_coef': 0.01,               # Reduce entropy as we start exploiting good actions
+                    'learning_rate': 1e-4,          # Increase learning rate slightly
+                    'ent_coef': 0.05,               # Reduce entropy as we start exploiting good actions
                     'clip_range': 0.2,              # Standard clipping
                     'n_epochs': 10,
                     'description': 'Goal: Learn to move forward effectively and increase speed.'
@@ -795,7 +797,7 @@ def create_training_config() -> Dict[str, Any]:
                 # Phase 3: PERFORMANCE OPTIMIZATION (Focus on getting faster)
                 {
                     'phase_name': 'performance_optimization',
-                    'duration_timesteps': 20_000,   # Shorter phase for fine-tuning
+                    'duration_timesteps': 10_000,   # Shorter phase for fine-tuning
                     'learning_rate': 2e-5,          # Lower learning rate again for fine-tuning the policy
                     'ent_coef': 0.001,              # VERY LOW entropy to perfect the learned policy
                     'clip_range': 0.2,
@@ -850,12 +852,14 @@ def make_env(env_config: Dict[str, Any], rank: int = 0):
         return env
     return _init
 
-def create_vectorized_env(config: Dict[str, Any]) -> DummyVecEnv:
+def create_vectorized_env(config: Dict[str, Any], n_envs: int = None, use_subprocess: bool = None) -> VecEnv:
     """
-    Create vectorized environment for parallel training.
+    Create vectorized environment for training or evaluation.
     
     Args:
         config: Training configuration
+        n_envs: Number of environments (defaults to config value)
+        use_subprocess: Whether to use subprocess (defaults to config value and n_envs)
         
     Returns:
         Vectorized environment
@@ -863,19 +867,25 @@ def create_vectorized_env(config: Dict[str, Any]) -> DummyVecEnv:
     env_config = config['env_config']
     training_config = config['training_config']
     
-    n_envs = training_config['n_envs']
-    use_subprocess = training_config['use_subprocess']
+    # Use provided values or fall back to config
+    if n_envs is None:
+        n_envs = training_config['n_envs']
+    if use_subprocess is None:
+        use_subprocess = training_config['use_subprocess']
     
     # Create environment functions
     env_fns = [make_env(env_config, i) for i in range(n_envs)]
     
     # Create vectorized environment
+    # Only use SubprocVecEnv if we have multiple environments and subprocess is enabled
     if use_subprocess and n_envs > 1:
         vec_env = SubprocVecEnv(env_fns)
+        env_type = "SubprocVecEnv"
     else:
         vec_env = DummyVecEnv(env_fns)
+        env_type = "DummyVecEnv"
     
-    logger.info(f"Created vectorized environment with {n_envs} parallel environments")
+    logger.info(f"Created {env_type} with {n_envs} environment(s)")
     return vec_env
 
 def create_callbacks(config: Dict[str, Any], eval_env, visualizer: TrainingVisualizer = None, 
@@ -989,7 +999,9 @@ def train_ppo_agent(config: Dict[str, Any], pretrained_model_path: str = None):
     
     # Create environments
     train_env = create_vectorized_env(config)
-    eval_env = DummyVecEnv([make_env(config['env_config'])])
+    
+    # Create evaluation environment - always use DummyVecEnv for eval for consistency and simplicity
+    eval_env = create_vectorized_env(config, n_envs=1, use_subprocess=False)
     
     # Create callbacks with visualizer and phased scheduler
     callbacks = create_callbacks(config, eval_env, visualizer, phased_scheduler)
