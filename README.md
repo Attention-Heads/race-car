@@ -104,6 +104,7 @@ You can send the following action responses:
 - STEER_RIGHT
 - STEER_LEFT
 
+
 ### Run the simulation locally
 ```cmd
 cd race-car

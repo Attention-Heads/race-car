@@ -1,1 +1,10 @@
 *.pyc
+
+.venv/
+__pycache__
+venv/
+
+
+progress_training.png
+models/
+logs/

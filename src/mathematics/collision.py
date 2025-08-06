@@ -2,12 +2,10 @@ import pygame
 from .vector import Vector  # Assuming a Vector class exists
 from typing import Optional, List
 
-
 class Line:
     def __init__(self, start: Vector, end: Vector):
         self.start = start
         self.end = end
-
 
 def intersects(a: pygame.Rect, b: pygame.Rect) -> bool:
     """
@@ -23,7 +21,6 @@ def intersects(a: pygame.Rect, b: pygame.Rect) -> bool:
         a.y + a.height > b.y and
         a.y < b.y + b.height
     )
-
 
 def get_intersection_point(v: Line, u: Line) -> Optional[Vector]:
     """
@@ -54,7 +51,6 @@ def get_intersection_point(v: Line, u: Line) -> Optional[Vector]:
 
     intersection = v.start.add(b.scale(t))
     return intersection
-
 
 def get_lines_of_rectangle(r: pygame.Rect) -> List[Line]:
     """

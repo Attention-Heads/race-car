@@ -1,9 +1,8 @@
 import pygame
 from typing import Optional
-from ..mathematics.vector import Vector
-from .road import Lane
+from ..mathematics.vector import Vector 
+from .road import Lane   
 from ..mathematics.randomizer import random_number
-
 
 class Car:
     def __init__(self, color: str, velocity: Vector, lane: Optional[Lane] = None, target_height: int = 40):
@@ -19,8 +18,7 @@ class Car:
         self.lane = lane
         self.x = 0
         self.y = 0
-        self.sprite = self.load_sprite(
-            f"public/assets/{color}car.png", target_height)
+        self.sprite = self.load_sprite(f"public/assets/{color}car.png", target_height)
 
     def update(self, ego: 'Car'):
         """
@@ -31,11 +29,12 @@ class Car:
         if self == ego:
             self.y += self.velocity.y
             return
-        self.x += self.velocity.x - ego.velocity.x
+        self.x += self.velocity.x - ego.velocity.x 
         self.y += self.velocity.y
         rn = random_number() - 0.5
         velocity_change = rn / 5
         self.velocity.x = self.velocity.x + velocity_change
+
 
     def slow_down(self, amount: float = 0.1):
         """
@@ -63,6 +62,7 @@ class Car:
         """
         self.velocity.y += amount
 
+
     def load_sprite(self, path: str, target_height: int) -> pygame.Surface:
         """
         Load the car's sprite from the given file path.
@@ -80,8 +80,7 @@ class Car:
             return sprite
         except pygame.error as e:
             print(f"Error loading sprite: {e}")
-            # Return a placeholder surface if loading fails
-            return pygame.Surface((target_height, target_height))
+            return pygame.Surface((target_height, target_height))  # Return a placeholder surface if loading fails
 
     @property
     def rect(self):

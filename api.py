@@ -8,19 +8,13 @@ from example import return_action
 HOST = "0.0.0.0"
 PORT = 9052
 
-
 app = FastAPI()
 start_time = time.time()
 
-
 @app.post('/predict', response_model=RaceCarPredictResponseDto)
 def predict(request: RaceCarPredictRequestDto = Body(...)):
-    action = return_action(request.dict())
-    return RaceCarPredictResponseDto(
-        action_type=action['action_type'],
-        actions=action['actions']
-    )
-
+    actions = return_action(request.dict())
+    return RaceCarPredictResponseDto(actions=actions)
 
 @app.get('/api')
 def hello():
@@ -29,14 +23,11 @@ def hello():
         "uptime": '{}'.format(datetime.timedelta(seconds=time.time() - start_time))
     }
 
-
 @app.get('/')
 def index():
     return "Your endpoint is running!"
 
-
 if __name__ == '__main__':
-
     uvicorn.run(
         'api:app',
         host=HOST,
