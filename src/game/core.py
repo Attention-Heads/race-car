@@ -8,7 +8,7 @@ from ..elements.road import Road
 from ..elements.sensor import Sensor
 from ..mathematics.vector import Vector
 import json
-from .agent import get_action_from_rule_based_agent
+from .agent import RuleBasedAgent
 
 # Define constants
 SCREEN_WIDTH = 1600
@@ -251,10 +251,10 @@ ACTION_LOG = []
 
 def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "actions_log.json"):
     global STATE
+    agent = RuleBasedAgent()
     clock = pygame.time.Clock()
     screen = None
     actions = []
-    maneuver_actions = []
     lane_change_initiated = False
     if verbose:
         screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -270,46 +270,18 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
                 f"Game over: Crashed: {STATE.crashed}, Ticks: {STATE.ticks}, Elapsed time: {STATE.elapsed_game_time} ms, Distance: {STATE.distance}")
             break
 
-        # Lane change maneuver
-        if STATE.elapsed_game_time > 3000 and not lane_change_initiated:
-            lane_change_sequence = ["STEER_RIGHT"] * 48 + ["STEER_LEFT"] * 48
-            for act in lane_change_sequence:
-                maneuver_actions.append(act)
-            lane_change_initiated = True
-
-        steering_action = None
-        if maneuver_actions:
-            steering_action = maneuver_actions.pop(0)
-
-        # Get cruise control action
-        sensor_data = {
-            sensor.name: sensor.reading
-            for sensor in STATE.sensors
-        }
-        cruise_control_actions = get_action_from_rule_based_agent(sensor_data)
-
-        # Combine actions
-        action_list = cruise_control_actions
-        if steering_action:
-            action_list.append(steering_action)
-
-        if not action_list:
-            action_list = ["NOTHING"]
-
-        for act in action_list:
-            actions.append(act)
-
         if not actions:
-            # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
-            # action_list = get_action()
-
-            # Må prosessere om fra liste til dictionary!
+            # Decide when to change lane (for now, after 3 seconds)
+            if STATE.elapsed_game_time > 3000 and not lane_change_initiated:
+                agent.initate_change_lane_right()
+                print("Change lane right")
+                lane_change_initiated = True
+                
             sensor_data = {
                 sensor.name: sensor.reading
                 for sensor in STATE.sensors
             }
-            action_list = get_action_from_rule_based_agent(
-                sensor_data)
+            action_list = agent.get_actions(sensor_data)
 
             for act in action_list:
                 actions.append(act)
@@ -372,14 +344,14 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
 
             pygame.display.flip()
 
-    # # Save actions to file after game ends
-    # import os
-    # if log_actions:
-    #     log_dir = os.path.dirname(log_path)
-    #     if log_dir and not os.path.exists(log_dir):
-    #         os.makedirs(log_dir, exist_ok=True)
-    #     with open(log_path, "w") as f:
-    #         json.dump(ACTION_LOG, f, indent=2)
+    # Save actions to file after game ends
+    import os
+    if log_actions:
+        log_dir = os.path.dirname(log_path)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+        with open(log_path, "w") as f:
+            json.dump(ACTION_LOG, f, indent=2)
 
 # Initialization - not used
 
