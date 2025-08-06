@@ -40,6 +40,12 @@ class Sensor:
 
         self.state = state
 
+    def get_reading(self) -> Optional[float]:
+        """
+        Returns the current sensor reading.
+        """
+        return self.reading
+
     def update(self):
         """
         Update the sensor's position, visibility, and reading.

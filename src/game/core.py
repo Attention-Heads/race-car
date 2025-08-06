@@ -19,7 +19,7 @@ MAX_MS = 60 * 1000600   # 60 seconds flat
 
 # Define game state
 class GameState:
-    def __init__(self, api_url: str):
+    def __init__(self, api_url: str, action_handler=None):
         self.ego = None
         self.cars = []
         self.car_bucket = []
@@ -28,6 +28,7 @@ class GameState:
         self.statistics = None
         self.sensors_enabled = True
         self.api_url = api_url
+        self.action_handler = action_handler
         self.crashed = False
         self.elapsed_game_time = 0
         self.distance = 0
@@ -168,10 +169,10 @@ def get_action_json():
         return "NOTHING"
 
 
-def initialize_game_state( api_url: str, seed_value: str, sensor_removal = 0):
+def initialize_game_state( api_url: str, seed_value: str, sensor_removal = 0, action_handler=None):
     seed(seed_value)
     global STATE
-    STATE = GameState(api_url)
+    STATE = GameState(api_url, action_handler=action_handler)
 
     # Create environment
     STATE.road = Road(SCREEN_WIDTH, SCREEN_HEIGHT, LANE_COUNT)
@@ -253,8 +254,20 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
             break
 
         if not actions:
-            # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
-            action_list = get_action()
+            if STATE.action_handler:
+                # Create a simple state dictionary for the handler
+                game_state_dict = {
+                    'sensors': {s.name: s.get_reading() for s in STATE.sensors},
+                    'velocity': {'x': STATE.ego.velocity.x, 'y': STATE.ego.velocity.y},
+                    'coordinates': {'x': STATE.ego.x, 'y': STATE.ego.y},
+                    'distance': STATE.distance,
+                    'elapsed_time_ms': STATE.elapsed_game_time,
+                    'did_crash': STATE.crashed
+                }
+                action_list = STATE.action_handler(game_state_dict)
+            else:
+                # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
+                action_list = get_action()
             
             for act in action_list:
                 actions.append(act)
