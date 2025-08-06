@@ -51,6 +51,7 @@ class EvolutionConfig:
     fitness_sharing: bool = True  # Enable fitness sharing to maintain diversity
     selection_pressure: float = 2.0  # For rank-based selection
     min_population_diversity: float = 0.1  # Minimum fitness std to maintain
+    immigration_ratio: float = 0.1       # Fraction of worst individuals replaced by random newcomers per generation
     
 class SimpleNeuralNet(nn.Module):
     """Simple feedforward neural network for the race car agent"""
@@ -439,6 +440,22 @@ class EvolutionaryTrainer:
                     child = Individual(parent.network.clone())
                     child.mutate(self.config.mutation_rate * 1.5)  # Higher mutation for diversity
                     trimmed_population.append(child)
+        # Immigration: replace worst individuals with new random actors
+        immig_ratio = getattr(self.config, 'immigration_ratio', 0)
+        if immig_ratio > 0:
+            immig_count = int(self.config.population_size * immig_ratio)
+            if immig_count > 0:
+                # Sort by fitness ascending and keep the best survivors
+                trimmed_population.sort(key=lambda ind: ind.fitness)
+                keep_count = self.config.population_size - immig_count
+                survivors = trimmed_population[:keep_count]
+                # Create newcomer individuals
+                newcomers = []
+                for _ in range(immig_count):
+                    net = SimpleNeuralNet(self.obs_size)
+                    newcomers.append(Individual(net))
+                trimmed_population = survivors + newcomers
+                logger.info(f"Immigration: replaced {immig_count} worst individuals with new random actors")
         
         return trimmed_population
     
@@ -827,7 +844,8 @@ def main():
     parser.add_argument("--checkpoint-output", type=str, default=None, help="Output path for created checkpoint (used with --create-checkpoint)")
     parser.add_argument("--selection-pressure", type=float, default=2.0, help="Selection pressure for rank-based selection")
     parser.add_argument("--min-diversity", type=float, default=0.1, help="Minimum population diversity to maintain")
-    
+    parser.add_argument("--immigration-ratio", type=float, default=0.1, help="Fraction of worst individuals replaced by random newcomers per generation")
+
     args = parser.parse_args()
     
     # Environment configuration
