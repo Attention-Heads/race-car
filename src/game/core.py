@@ -372,8 +372,8 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
                 for lane, cars in sorted(tracked_lanes.items()):
                     # Sort cars by relative_x to have a stable display
                     sorted_cars = sorted(cars, key=lambda c: c['relative_x'])
-                    car_positions = ", ".join([f"{c['relative_x']:.0f}" for c in sorted_cars])
-                    lane_text = f"Lane {lane}: [{car_positions}]"
+                    car_details = ", ".join([f"({c['relative_x']:.0f}, {c['relative_velocity_x']:.1f}, {c['avg_abs_velocity']:.1f})" for c in sorted_cars])
+                    lane_text = f"Lane {lane}: [{car_details}]"
                     draw_text(screen, lane_text, 10, y_offset)
                     y_offset += 30
 
