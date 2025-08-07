@@ -7,3 +7,8 @@ torchvision
 numpy
 matplotlib
 tensorboard
+numpy
+matplotlib
+torch
+pydantic
+pygame
