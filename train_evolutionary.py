@@ -395,7 +395,7 @@ class EvolutionaryTrainer:
                 parent2 = self._rank_based_selection(self.population)
             else:
                 # Medium diversity - mix of selection strategies
-                if np.random.random() < 0.7:
+                if np.random.random() < 0.5:
                     parent1 = self._tournament_selection(self.population, self.config.tournament_size)
                     parent2 = self._tournament_selection(self.population, self.config.tournament_size)
                 else:
@@ -830,7 +830,7 @@ def main():
     parser.add_argument("--mutation-rate", type=float, default=0.025, help="Mutation rate")
     parser.add_argument("--crossover-rate", type=float, default=0.8, help="Crossover rate")
     parser.add_argument("--elite-ratio", type=float, default=0.2, help="Elite ratio to keep unchanged")
-    parser.add_argument("--tournament-size", type=int, default=16, help="Tournament selection size")
+    parser.add_argument("--tournament-size", type=int, default=24, help="Tournament selection size")
     parser.add_argument("--evaluations", type=int, default=16, help="Episodes per individual evaluation")
     parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers")
     parser.add_argument("--save-dir", type=str, default="evolutionary_results", help="Directory to save results")
@@ -841,7 +841,7 @@ def main():
     parser.add_argument("--resume-latest", action="store_true", help="Resume from the latest checkpoint in save-dir")
     parser.add_argument("--create-checkpoint", type=str, default=None, help="Create population checkpoint from best individual file")
     parser.add_argument("--checkpoint-output", type=str, default=None, help="Output path for created checkpoint (used with --create-checkpoint)")
-    parser.add_argument("--selection-pressure", type=float, default=2.0, help="Selection pressure for rank-based selection")
+    parser.add_argument("--selection-pressure", type=float, default=2.5, help="Selection pressure for rank-based selection")
     parser.add_argument("--min-diversity", type=float, default=0.1, help="Minimum population diversity to maintain")
     parser.add_argument("--immigration-ratio", type=float, default=0.0, help="Fraction of worst individuals replaced by random newcomers per generation")
 
