@@ -1,3 +1,4 @@
+from typing import List
 from typing import List, Dict
 
 _N_LANE_CHANGE = 47
@@ -13,14 +14,33 @@ class RuleBasedAgent:
         self.promising_car_right = None
         self.has_gone_to_left = False
         self.has_gone_to_right = False
+        self.previous_distance = None
 
     def _sanitize(self, value):
         return value if value is not None else 1000
 
     def _get_cruise_control_actions(self, s: Dict[str, float]) -> List[str]:
+
         # Cruise control model
-        if s['front'] < 1000:
-            return ['DECELERATE']
+        self.previous_distance
+        current_distance = s['front']
+
+        # If we haven't seen a previous value yet, just store and accelerate
+        if self.previous_distance is None:
+            self.previous_distance = current_distance
+            return ['ACCELERATE']
+
+        # Estimate rate of change (assume Δt = 1 for simplicity)
+        delta_d = current_distance - self.previous_distance
+        self.previous_distance = current_distance
+
+        # If distance is increasing, car in front is pulling away → accelerate
+        # If distance is decreasing, you're getting closer → decelerate
+        if current_distance < 1000:
+            if delta_d > 0 and current_distance > 900:
+                return ['ACCELERATE']
+            else:
+                return ['DECELERATE']
         else:
             return ['ACCELERATE']
 
