@@ -6,6 +6,7 @@
 ```bash
 python demo_dqn.py                    # 5 episodes demo (~2 min)
 python test_dqn.py                    # Verify all components work
+python test_gpu_cpu.py                # Test CPU/GPU compatibility
 ```
 
 ### 2. Measure Baseline
@@ -143,10 +144,12 @@ training/                     # Training scripts
 
 ## ⚡ Hardware Requirements
 
-- **CPU**: ~15-25 hours full training
-- **GPU**: ~6-12 hours full training  
+- **CPU Only**: ~15-25 hours full training
+- **GPU (CUDA)**: ~6-12 hours full training  
 - **RAM**: 8GB+ recommended
 - **Storage**: ~1GB for logs/models
+
+**Note**: Training automatically detects and uses GPU if available, otherwise falls back to CPU. Both are fully supported.
 
 ## 🎯 Recommended Workflow
 

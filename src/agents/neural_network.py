@@ -87,8 +87,9 @@ class DQNNetwork(nn.Module):
         if np.random.random() < epsilon:
             return np.random.randint(self.action_size)
         
-        # Convert to tensor and get Q-values
-        state_tensor = torch.FloatTensor(state).unsqueeze(0)
+        # Convert to tensor and move to same device as network
+        device = next(self.parameters()).device
+        state_tensor = torch.FloatTensor(state).unsqueeze(0).to(device)
         with torch.no_grad():
             q_values = self.forward(state_tensor)
             return q_values.argmax().item()
@@ -349,7 +350,8 @@ class DuelingDQNNetwork(nn.Module):
         if np.random.random() < epsilon:
             return np.random.randint(self.action_size)
         
-        state_tensor = torch.FloatTensor(state).unsqueeze(0)
+        device = next(self.parameters()).device
+        state_tensor = torch.FloatTensor(state).unsqueeze(0).to(device)
         with torch.no_grad():
             q_values = self.forward(state_tensor)
             return q_values.argmax().item()
