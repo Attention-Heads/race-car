@@ -5,3 +5,8 @@ __pycache__/
 *.pyd
 
 actions_log.json
+
+models/checkpoints/*
+logs/training_log.jsonl
+logs/
+logs/training_progress.png

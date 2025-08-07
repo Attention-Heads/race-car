@@ -10,11 +10,8 @@ class RuleBasedAgent:
     def __init__(self):
         self.maneuver_sequence = []
         self.is_performing_maneuver = False
-        self.promising_car_left = None
-        self.promising_car_right = None
-        self.has_gone_to_left = False
-        self.has_gone_to_right = False
         self.previous_distance = None
+        # Lane switching logic removed - will be handled by DQN agent
 
     def _sanitize(self, value):
         return value if value is not None else 1000
@@ -90,9 +87,8 @@ class RuleBasedAgent:
         ]}
 
         actions = []
-        steering_action = None
 
-        # If a maneuver is in progress, prioritize it over cruise control.
+        # If a lane change maneuver is in progress, prioritize it over cruise control
         if self.is_performing_maneuver:
             if self.maneuver_sequence:
                 steering_action = self.maneuver_sequence.pop(0)
@@ -101,35 +97,8 @@ class RuleBasedAgent:
             else:
                 self.is_performing_maneuver = False
 
-        # Lane change - left
-        if not self.has_gone_to_left:
-            if s['back_left_back'] < 600 and self.promising_car_left:
-                self.has_gone_to_left = True
-                self.has_gone_to_right = False
-                self.initate_change_lane_left_front()
-            elif s['front_left_front'] < 600:
-                self.promising_car_left = 'front_left_front'
-
-            if self.promising_car_left == 'front_left_front' and s['left_side'] < 200:
-                self.promising_car_left == True
-            else:
-                self.promising_car_left = False
-
-        # Lane change - right
-        if not self.has_gone_to_right:
-            if s['back_right_back'] < 600 and self.promising_car_right:
-                self.has_gone_to_right = True
-                self.has_gone_to_left = False
-                self.initate_change_lane_right_front()
-            elif s['front_right_front'] < 600:
-                self.promising_car_right = 'front_right_front'
-
-            if self.promising_car_right == 'front_right_front' and s['right_side'] < 200:
-                self.promising_car_right == True
-            else:
-                self.promising_car_right = False
-
-        # If no maneuver, perform cruise control
+        # Lane switching decisions will be handled by DQN agent
+        # This agent now only handles cruise control
         cruise_actions = self._get_cruise_control_actions(s)
         actions.extend(cruise_actions)
 
@@ -137,6 +106,13 @@ class RuleBasedAgent:
             return ["NOTHING"]
 
         return actions
+
+    def execute_lane_change(self, direction: str):
+        """Execute a lane change in the specified direction. Called by DQN agent."""
+        if direction == "left":
+            self.initate_change_lane_left()
+        elif direction == "right":
+            self.initate_change_lane_right()
 
 # Keep the old function for now to avoid breaking other parts of the code, we will remove it later.
 

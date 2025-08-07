@@ -10,6 +10,14 @@ from ..mathematics.vector import Vector
 import json
 from .agent import RuleBasedAgent
 
+# Optional DQN imports (will be None if not available)
+try:
+    from ..agents.dqn_agent import DQNAgent
+    DQN_AVAILABLE = True
+except ImportError:
+    DQNAgent = None
+    DQN_AVAILABLE = False
+
 # Define constants
 SCREEN_WIDTH = 1600
 SCREEN_HEIGHT = 1200
@@ -253,6 +261,164 @@ def update_game(current_action: str):
 
 # Main game loop
 ACTION_LOG = []
+
+
+def game_loop_with_dqn(dqn_agent: 'DQNAgent' = None, verbose: bool = True, 
+                      log_actions: bool = True, log_path: str = "actions_log.json"):
+    """
+    Enhanced game loop that supports DQN agents for lane switching decisions.
+    
+    Args:
+        dqn_agent: DQN agent for lane switching (None uses rule-based only)
+        verbose: Whether to display pygame window
+        log_actions: Whether to log actions to file
+        log_path: Path to action log file
+    """
+    global STATE
+    agent = RuleBasedAgent()
+    clock = pygame.time.Clock()
+    screen = None
+    actions = []
+    
+    if verbose:
+        screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+        pygame.display.set_caption("Race Car Game - DQN Training" if dqn_agent else "Race Car Game")
+
+    while True:
+        delta = clock.tick(60)  # Limit to 60 FPS
+        STATE.elapsed_game_time += delta
+        STATE.ticks += 1
+
+        if STATE.crashed or STATE.ticks > MAX_TICKS or STATE.elapsed_game_time > MAX_MS:
+            if verbose:
+                print(f"Game over: Crashed: {STATE.crashed}, Ticks: {STATE.ticks}, "
+                     f"Elapsed time: {STATE.elapsed_game_time} ms, Distance: {STATE.distance}")
+            break
+
+        # Get sensor data
+        sensor_data = {
+            sensor.name: sensor.reading
+            for sensor in STATE.sensors
+        }
+
+        # DQN agent makes lane switching decisions
+        dqn_action = None
+        if dqn_agent:
+            dqn_action = dqn_agent.get_action(
+                sensor_data=sensor_data,
+                velocity=STATE.ego.velocity,
+                distance=STATE.distance,
+                current_tick=STATE.ticks,
+                is_performing_maneuver=agent.is_performing_maneuver,
+                training=True
+            )
+            
+            # Execute lane change if requested
+            if dqn_action in [0, 1]:  # Lane change actions
+                success = dqn_agent.execute_lane_change(dqn_action, STATE.ticks)
+                if success:
+                    direction = "left" if dqn_action == 0 else "right"
+                    agent.execute_lane_change(direction)
+
+        # Get cruise control actions
+        if not actions:
+            action_list = agent.get_actions(sensor_data)
+            for act in action_list:
+                actions.append(act)
+        
+        if actions:
+            action = actions.pop()
+        else:
+            action = "NOTHING"
+
+        # Log the action with tick
+        if log_actions:
+            ACTION_LOG.append({
+                "tick": STATE.ticks, 
+                "cruise_action": action,
+                "dqn_action": dqn_action
+            })
+
+        handle_action(action)
+
+        STATE.distance += STATE.ego.velocity.x
+        update_cars()
+        remove_passed_cars()
+        place_car()
+
+        # Update sensors
+        for sensor in STATE.sensors:
+            sensor.update()
+
+        # Handle collisions
+        for car in STATE.cars:
+            if car != STATE.ego and intersects(STATE.ego.rect, car.rect):
+                STATE.crashed = True
+
+        # Check collision with walls
+        for wall in STATE.road.walls:
+            if intersects(STATE.ego.rect, wall.rect):
+                STATE.crashed = True
+
+        # Update DQN agent with step information
+        if dqn_agent:
+            reward = dqn_agent.step(
+                sensor_data=sensor_data,
+                velocity=STATE.ego.velocity,
+                distance=STATE.distance,
+                current_tick=STATE.ticks,
+                crashed=STATE.crashed,
+                is_performing_maneuver=agent.is_performing_maneuver
+            )
+
+        # Render game (only if verbose)
+        if verbose:
+            _render_game(screen)
+
+    # Save actions to file after game ends
+    if log_actions:
+        import os
+        log_dir = os.path.dirname(log_path)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+        with open(log_path, "w") as f:
+            json.dump(ACTION_LOG, f, indent=2)
+
+    return STATE.distance, STATE.crashed, STATE.ticks
+
+
+def _render_game(screen):
+    """Render the current game state."""
+    screen.fill((0, 0, 0))  # Clear the screen with black
+
+    # Draw the road background
+    screen.blit(STATE.road.surface, (0, 0))
+
+    # Draw all walls
+    for wall in STATE.road.walls:
+        wall.draw(screen)
+
+    # Draw all cars
+    for car in STATE.cars:
+        if car.sprite:
+            screen.blit(car.sprite, (car.x, car.y))
+            bounds = car.get_bounds()
+            color = (255, 0, 0) if car == STATE.ego else (0, 255, 0)
+            pygame.draw.rect(screen, color, bounds, width=2)
+        else:
+            pygame.draw.rect(screen, (255, 255, 0) if car ==
+                           STATE.ego else (0, 0, 255), car.rect)
+
+    # Draw sensors if enabled
+    if STATE.sensors_enabled:
+        for sensor in STATE.sensors:
+            sensor.draw(screen)
+
+    # Draw velocity
+    velocity_text = f"Velocity: ({STATE.ego.velocity.x:.2f}, {STATE.ego.velocity.y:.2f})"
+    draw_text(screen, velocity_text, 10, 10)
+
+    pygame.display.flip()
 
 
 def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "actions_log.json"):
