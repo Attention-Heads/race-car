@@ -10,8 +10,8 @@ class RuleBasedAgent:
     def __init__(self):
         self.maneuver_sequence = []
         self.is_performing_maneuver = False
-        self.promising_car_left = False
-        self.promising_car_right = False
+        self.promising_car_left_back = False
+        self.promising_car_right_back = False
         self.has_gone_to_left = False
         self.has_gone_to_right = False
         self.previous_distance = None
@@ -111,29 +111,29 @@ class RuleBasedAgent:
         if s['front'] > 850:
             # Lane change - left
             if not self.has_gone_to_left:
-                if s['back_left_back'] < 650 and s['back_left_back'] > 400 and self.promising_car_left:
+                if s['back_left_back'] < 650 and s['back_left_back'] > 400 and self.promising_car_left_back:
                     self.has_gone_to_left = True
                     self.has_gone_to_right = False
                     self.started_maneuver = True
                     self.initate_change_lane_left()
                 elif s['front_left_front'] < 650:
-                    self.promising_car_left = True
+                    self.promising_car_left_back = True
 
-                if self.promising_car_left and not self.car_is_touching_sensors_left(s):
-                    self.promising_car_left = False
+                if self.promising_car_left_back and not self.car_is_touching_sensors_left(s):
+                    self.promising_car_left_back = False
 
             # Lane change - right
             if not self.has_gone_to_right and not self.started_maneuver:
-                if s['back_right_back'] < 650 and s['back_right_back'] > 400 and self.promising_car_right:
+                if s['back_right_back'] < 650 and s['back_right_back'] > 400 and self.promising_car_right_back:
                     self.has_gone_to_right = True
                     self.has_gone_to_left = False
                     self.initate_change_lane_right()
                     self.started_maneuver = True
                 elif s['front_right_front'] < 650:
-                    self.promising_car_right = True
+                    self.promising_car_right_back = True
 
-                if self.promising_car_right and not self.car_is_touching_sensors_right(s):
-                    self.promising_car_right = False
+                if self.promising_car_right_back and not self.car_is_touching_sensors_right(s):
+                    self.promising_car_right_back = False
 
         self.started_maneuver = False
         # If no maneuver, perform cruise control
