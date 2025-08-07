@@ -831,7 +831,7 @@ def main():
     parser.add_argument("--crossover-rate", type=float, default=0.8, help="Crossover rate")
     parser.add_argument("--elite-ratio", type=float, default=0.2, help="Elite ratio to keep unchanged")
     parser.add_argument("--tournament-size", type=int, default=24, help="Tournament selection size")
-    parser.add_argument("--evaluations", type=int, default=16, help="Episodes per individual evaluation")
+    parser.add_argument("--evaluations", type=int, default=14, help="Episodes per individual evaluation")
     parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers")
     parser.add_argument("--save-dir", type=str, default="evolutionary_results", help="Directory to save results")
     parser.add_argument("--test", type=str, default=None, help="Path to weights file for testing")
