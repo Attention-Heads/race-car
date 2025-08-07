@@ -108,14 +108,14 @@ class RuleBasedAgent:
                 self.is_performing_maneuver = False
 
         # Lane shift condition - should be updated
-        if s['front'] > 800:
+        if s['front'] > 850:
             # Lane change - left
             if not self.has_gone_to_left:
                 if s['back_left_back'] < 650 and s['back_left_back'] > 400 and self.promising_car_left:
                     self.has_gone_to_left = True
                     self.has_gone_to_right = False
                     self.started_maneuver = True
-                    self.initate_change_lane_left_front()
+                    self.initate_change_lane_left()
                 elif s['front_left_front'] < 650:
                     self.promising_car_left = True
 
@@ -127,7 +127,7 @@ class RuleBasedAgent:
                 if s['back_right_back'] < 650 and s['back_right_back'] > 400 and self.promising_car_right:
                     self.has_gone_to_right = True
                     self.has_gone_to_left = False
-                    self.initate_change_lane_right_front()
+                    self.initate_change_lane_right()
                     self.started_maneuver = True
                 elif s['front_right_front'] < 650:
                     self.promising_car_right = True

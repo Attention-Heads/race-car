@@ -20,7 +20,7 @@ def return_action(state):
 
 
 if __name__ == '__main__':
-    seed_value = None
+    seed_value = None  # Spesielt dårlig på seed 36716
     pygame.init()
     initialize_game_state("http://example.com/api/predict", seed_value)
     game_loop(verbose=True)  # For pygame window
