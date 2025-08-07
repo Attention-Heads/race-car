@@ -9,6 +9,7 @@ from ..elements.sensor import Sensor
 from ..mathematics.vector import Vector
 import json
 from .agent import RuleBasedAgent
+from .obstacle_tracker import ObstacleTracker
 
 # Define constants
 SCREEN_WIDTH = 1600
@@ -36,6 +37,7 @@ class GameState:
         self.distance = 0
         self.latest_action = "NOTHING"
         self.ticks = 0
+        self.obstacle_tracker = None
 
 
 STATE = None
@@ -188,6 +190,7 @@ def initialize_game_state(api_url: str, seed_value: str, sensor_removal=0):
     seed(seed_value)
     global STATE
     STATE = GameState(api_url)
+    STATE.obstacle_tracker = ObstacleTracker(STATE)
 
     # Create environment
     STATE.road = Road(SCREEN_WIDTH, SCREEN_HEIGHT, LANE_COUNT)
@@ -248,6 +251,8 @@ def update_game(current_action: str):
     for sensor in STATE.sensors:
         sensor.update()
 
+    STATE.obstacle_tracker.update()
+
     return STATE
 
 
@@ -304,6 +309,12 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
         remove_passed_cars()
         place_car()
 
+        STATE.obstacle_tracker.update()
+        # To see the output of the tracker, uncomment the following lines
+        # tracked_lanes = STATE.obstacle_tracker.get_lanes_data()
+        # if tracked_lanes:
+        #     print(f"Tick {STATE.ticks}: {tracked_lanes}")
+
         # print("Current action:", action)
         # print("Currnet tick:", STATE.ticks)
 
@@ -351,6 +362,20 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
             # Draw velocity
             velocity_text = f"Velocity: ({STATE.ego.velocity.x:.2f}, {STATE.ego.velocity.y:.2f})"
             draw_text(screen, velocity_text, 10, 10)
+
+            # Draw obstacle tracker data
+            tracked_lanes = STATE.obstacle_tracker.get_lanes_data()
+            y_offset = 40 # Start drawing below the velocity text
+            draw_text(screen, "Tracked Obstacles:", 10, y_offset)
+            y_offset += 30
+            if tracked_lanes:
+                for lane, cars in sorted(tracked_lanes.items()):
+                    # Sort cars by relative_x to have a stable display
+                    sorted_cars = sorted(cars, key=lambda c: c['relative_x'])
+                    car_positions = ", ".join([f"{c['relative_x']:.0f}" for c in sorted_cars])
+                    lane_text = f"Lane {lane}: [{car_positions}]"
+                    draw_text(screen, lane_text, 10, y_offset)
+                    y_offset += 30
 
             pygame.display.flip()
 
