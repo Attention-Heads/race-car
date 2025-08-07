@@ -95,7 +95,7 @@ class GameSimulation:
         middle_lane = road.middle_lane()
         lane_height = road.get_lane_height()
         
-        ego_velocity = Vector(10, 0)
+        ego_velocity = Vector(0, 0) # Initial velocity of the ego car 
         ego = Car("yellow", ego_velocity, lane=middle_lane, target_height=int(lane_height * 0.8))
         ego_sprite = ego.sprite
         ego.x = (SCREEN_WIDTH // 2) - (ego_sprite.get_width() // 2)  # Match real game starting position

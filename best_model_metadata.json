@@ -1,0 +1,7 @@
+{
+  "best_distance": 24061.349609375,
+  "timestep": 349888,
+  "episode": 101535,
+  "timestamp": "2025-08-07T12:24:11.968898",
+  "model_path": "best_model.zip"
+}

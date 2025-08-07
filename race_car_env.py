@@ -115,8 +115,7 @@ class RaceCarEnv(gym.Env):
 
         # Optional speed bonus (only if configured)
         if 'speed_bonus' in self.reward_weights and self.reward_weights['speed_bonus'] != 0:
-            speed = np.linalg.norm([current_dto['velocity']['x'], current_dto['velocity']['y']])
-            reward += speed * self.reward_weights['speed_bonus']
+            reward += current_dto['velocity']['x'] * self.reward_weights['speed_bonus']
         
         # Optional proximity penalty (only if configured)
         if 'proximity_penalty' in self.reward_weights and self.reward_weights['proximity_penalty'] != 0:

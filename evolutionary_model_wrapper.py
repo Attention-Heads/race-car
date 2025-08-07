@@ -108,11 +108,27 @@ class EvolutionaryModelWrapper:
                 logger.info(f"Model generation: {data.get('generation', 'unknown')}")
                 
             elif model_path.endswith('.pt'):
-                # Load from PyTorch state dict
-                # We need to know the architecture to create the network first
-                # This is a limitation - we'll need the architecture info
-                raise NotImplementedError("Loading from .pt files requires knowing the network architecture. "
-                                        "Please use .pkl files which contain architecture information.")
+                # Load from PyTorch state dict by inferring architecture from parameter shapes
+                state_dict = torch.load(model_path, map_location='cpu')
+                # Identify linear layer weight keys within the sequential network
+                weight_keys = [k for k in state_dict.keys() if k.endswith('.weight') and 'network' in k]
+                # Sort by layer index (network.<idx>.weight)
+                def _layer_idx(key):
+                    try:
+                        return int(key.split('.')[1])
+                    except:
+                        return 0
+                weight_keys = sorted(weight_keys, key=_layer_idx)
+                # Derive shapes: (out_features, in_features)
+                shapes = [state_dict[k].shape for k in weight_keys]
+                # Input size from first layer, hidden sizes from intermediate, output size from last
+                input_size = shapes[0][1]
+                hidden_sizes = [s[0] for s in shapes[:-1]]
+                output_size = shapes[-1][0]
+                # Build network and load state dict
+                self.network = SimpleNeuralNet(input_size, hidden_sizes, output_size)
+                self.network.load_state_dict(state_dict)
+                logger.info(f"Loaded evolutionary model from {model_path} (inferred arch: {hidden_sizes})")
             else:
                 raise ValueError(f"Unsupported file format: {model_path}")
                 
