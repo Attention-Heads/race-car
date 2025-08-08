@@ -127,8 +127,8 @@ class RuleBasedAgent:
                 if s['back_right_back'] < 700 and s['back_right_back'] > 450 and self.promising_car_right_back:
                     self.has_gone_to_right = True
                     self.has_gone_to_left = False
-                    self.initate_change_lane_right()
                     self.started_maneuver = True
+                    self.initate_change_lane_right()
                 elif s['front_right_front'] < 700:
                     self.promising_car_right_back = True
 
