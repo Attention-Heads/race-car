@@ -8,6 +8,7 @@ from ..elements.road import Road
 from ..elements.sensor import Sensor
 from ..mathematics.vector import Vector
 import json
+from .agent import RuleBasedAgent
 
 # Define constants
 SCREEN_WIDTH = 1600
@@ -38,6 +39,12 @@ class GameState:
 
 
 STATE = None
+
+
+def draw_text(surface, text, x, y, font_size=24, color=(255, 255, 255)):
+    font = pygame.font.SysFont("monospace", font_size)
+    text_surface = font.render(text, True, color)
+    surface.blit(text_surface, (x, y))
 
 
 def intersects(rect1, rect2):
@@ -214,7 +221,6 @@ def initialize_game_state(api_url: str, seed_value: str, sensor_removal=0):
         (337.5, "left_side_back"),
     ]
 
-    # Vi skal ikke fjerne sensorer
     # for _ in range(sensor_removal):  # Removes random sensors
     #     random_sensor = random_choice(sensor_options)
     #     sensor_options.remove(random_sensor)
@@ -251,9 +257,11 @@ ACTION_LOG = []
 
 def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "actions_log.json"):
     global STATE
+    agent = RuleBasedAgent()
     clock = pygame.time.Clock()
     screen = None
     actions = []
+    lane_change_initiated = False
     if verbose:
         screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
         pygame.display.set_caption("Race Car Game")
@@ -269,8 +277,11 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
             break
 
         if not actions:
-            # Handle action - get_action() is a method for using arrow keys to steer - implement own logic here!
-            action_list = get_action()
+            sensor_data = {
+                sensor.name: sensor.reading
+                for sensor in STATE.sensors
+            }
+            action_list = agent.get_actions(sensor_data)
 
             for act in action_list:
                 actions.append(act)
@@ -287,8 +298,8 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
         remove_passed_cars()
         place_car()
 
-        print("Current action:", action)
-        print("Currnet tick:", STATE.ticks)
+        # print("Current action:", action)
+        # print("Currnet tick:", STATE.ticks)
 
         # Update sensors
         for sensor in STATE.sensors:
@@ -331,16 +342,20 @@ def game_loop(verbose: bool = True, log_actions: bool = True, log_path: str = "a
                 for sensor in STATE.sensors:
                     sensor.draw(screen)
 
+            # Draw velocity
+            velocity_text = f"Velocity: ({STATE.ego.velocity.x:.2f}, {STATE.ego.velocity.y:.2f})"
+            draw_text(screen, velocity_text, 10, 10)
+
             pygame.display.flip()
 
-    # # Save actions to file after game ends
-    # import os
-    # if log_actions:
-    #     log_dir = os.path.dirname(log_path)
-    #     if log_dir and not os.path.exists(log_dir):
-    #         os.makedirs(log_dir, exist_ok=True)
-    #     with open(log_path, "w") as f:
-    #         json.dump(ACTION_LOG, f, indent=2)
+    # Save actions to file after game ends
+    import os
+    if log_actions:
+        log_dir = os.path.dirname(log_path)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir, exist_ok=True)
+        with open(log_path, "w") as f:
+            json.dump(ACTION_LOG, f, indent=2)
 
 # Initialization - not used
 

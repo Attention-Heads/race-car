@@ -1,4 +1,16 @@
-# Race Car
+# How to run
+
+1. Install requirements
+```
+pip install -r requirements.txt
+```
+
+2. Run the example
+```
+python example.py
+```
+
+# Race Car (Original README)
 
 🔴 Ready
 

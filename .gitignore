@@ -1,1 +1,7 @@
+# Ignore Python bytecode
+__pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+actions_log.json
